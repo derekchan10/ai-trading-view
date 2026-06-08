@@ -34,7 +34,7 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build -- --base=/ai-trading-view/
+        run: npm run build
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
