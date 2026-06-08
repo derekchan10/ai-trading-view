@@ -1,0 +1,197 @@
+<svg width="1440" height="940" viewBox="0 0 1440 940" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .page { fill: #ffffff; }
+      .text { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #101828; }
+      .muted { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #667085; }
+      .title { font-size: 31px; font-weight: 800; }
+      .h2 { font-size: 18px; font-weight: 700; }
+      .body { font-size: 14px; }
+      .small { font-size: 12px; }
+      .tiny { font-size: 11px; }
+      .btn { font-size: 13px; font-weight: 700; font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; }
+      .axis { fill: #a7b0be; font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 12px; }
+      .white { fill: #ffffff; font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; }
+      .chip { fill: #ffffff; font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 12px; font-weight: 700; }
+      .grid { stroke: #2b323a; stroke-width: 1; stroke-dasharray: 2 5; }
+      .gridStrong { stroke: #3f4651; stroke-width: 1; }
+      .panel { fill: #ffffff; stroke: #d0d5dd; stroke-width: 1; }
+      .black { fill: #050505; }
+      .tableHead { fill: #050505; }
+    </style>
+  </defs>
+
+  <rect width="1440" height="940" class="page"/>
+
+  <!-- Top title and legend -->
+  <text x="28" y="50" class="text title">2023年-2025年 AI算力产业链涨幅节奏：</text>
+  <text x="575" y="50" style="font-family: PingFang SC, Microsoft YaHei, Arial, sans-serif; fill:#ff2b2b; font-size:27px; font-weight:800;">英伟达</text>
+  <text x="682" y="50" style="font-family: PingFang SC, Microsoft YaHei, Arial, sans-serif; fill:#12a7ff; font-size:27px; font-weight:800;">胜宏科技</text>
+  <text x="814" y="50" style="font-family: PingFang SC, Microsoft YaHei, Arial, sans-serif; fill:#00d43b; font-size:27px; font-weight:800;">中际旭创</text>
+  <text x="946" y="50" style="font-family: PingFang SC, Microsoft YaHei, Arial, sans-serif; fill:#9a3be8; font-size:27px; font-weight:800;">中材科技</text>
+  <text x="1078" y="50" style="font-family: PingFang SC, Microsoft YaHei, Arial, sans-serif; fill:#f4b000; font-size:27px; font-weight:800;">德福科技</text>
+
+  <!-- Controls row -->
+  <rect x="24" y="72" width="1392" height="54" rx="8" fill="#f7f9fc" stroke="#e4e7ec"/>
+  <text x="44" y="105" class="text h2">看板模式</text>
+  <rect x="130" y="85" width="80" height="30" rx="6" fill="#111827"/>
+  <text x="154" y="105" class="chip">个股</text>
+  <rect x="218" y="85" width="98" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="237" y="105" class="text btn">标签均值</text>
+  <rect x="324" y="85" width="92" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="344" y="105" class="text btn">混合</text>
+
+  <text x="452" y="105" class="text h2">周期</text>
+  <rect x="502" y="85" width="70" height="30" rx="6" fill="#111827"/>
+  <text x="526" y="105" class="chip">日线</text>
+  <rect x="580" y="85" width="70" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="604" y="105" class="text btn">周线</text>
+  <rect x="658" y="85" width="70" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="682" y="105" class="text btn">月线</text>
+
+  <text x="768" y="105" class="text h2">区间</text>
+  <rect x="822" y="85" width="176" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="842" y="105" class="muted body">2023-01-01 至 2025-12-31</text>
+  <rect x="1020" y="85" width="110" height="30" rx="6" fill="#eef6ff" stroke="#9ecaff"/>
+  <text x="1040" y="105" class="text btn">起点归一化</text>
+  <rect x="1140" y="85" width="96" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1158" y="105" class="text btn">按涨幅排序</text>
+  <rect x="1248" y="85" width="160" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1268" y="105" class="muted body">搜索股票 / 标签</text>
+
+  <!-- Chart panel -->
+  <rect x="24" y="144" width="1392" height="640" class="black"/>
+  <clipPath id="plotClip">
+    <rect x="72" y="164" width="1320" height="560"/>
+  </clipPath>
+
+  <!-- Grid -->
+  <g>
+    <line x1="72" y1="704" x2="1392" y2="704" class="gridStrong"/>
+    <line x1="72" y1="644" x2="1392" y2="644" class="grid"/>
+    <line x1="72" y1="584" x2="1392" y2="584" class="grid"/>
+    <line x1="72" y1="524" x2="1392" y2="524" class="grid"/>
+    <line x1="72" y1="464" x2="1392" y2="464" class="grid"/>
+    <line x1="72" y1="404" x2="1392" y2="404" class="grid"/>
+    <line x1="72" y1="344" x2="1392" y2="344" class="grid"/>
+    <line x1="72" y1="284" x2="1392" y2="284" class="grid"/>
+    <line x1="72" y1="224" x2="1392" y2="224" class="grid"/>
+    <line x1="72" y1="164" x2="1392" y2="164" class="grid"/>
+    <line x1="72" y1="164" x2="72" y2="724" stroke="#353b44"/>
+    <line x1="72" y1="704" x2="1392" y2="704" stroke="#505762"/>
+  </g>
+
+  <!-- Y labels -->
+  <text x="28" y="708" class="axis">0%</text>
+  <text x="28" y="648" class="axis">100%</text>
+  <text x="28" y="588" class="axis">200%</text>
+  <text x="28" y="528" class="axis">300%</text>
+  <text x="28" y="468" class="axis">400%</text>
+  <text x="28" y="408" class="axis">500%</text>
+  <text x="28" y="348" class="axis">600%</text>
+  <text x="28" y="288" class="axis">700%</text>
+  <text x="28" y="228" class="axis">800%</text>
+  <text x="28" y="168" class="axis">900%</text>
+
+  <!-- X labels -->
+  <text x="82" y="744" class="axis">2023/01</text>
+  <text x="276" y="744" class="axis">2023/07</text>
+  <text x="470" y="744" class="axis">2024/01</text>
+  <text x="664" y="744" class="axis">2024/07</text>
+  <text x="858" y="744" class="axis">2025/01</text>
+  <text x="1052" y="744" class="axis">2025/07</text>
+  <text x="1246" y="744" class="axis">2025/12</text>
+
+  <!-- Dividend/event markers -->
+  <g style="font-family: Arial, sans-serif; fill:#ff1e1e; font-size:14px; font-weight:700;">
+    <text x="86" y="768">$</text>
+    <text x="242" y="768">$</text>
+    <text x="394" y="768">$</text>
+    <text x="552" y="768">$</text>
+    <text x="704" y="768">$</text>
+    <text x="862" y="768">$</text>
+    <text x="1014" y="768">$</text>
+    <text x="1172" y="768">$</text>
+    <text x="1324" y="768">$</text>
+  </g>
+
+  <!-- Lines -->
+  <g clip-path="url(#plotClip)">
+    <!-- 英伟达 red -->
+    <polyline points="
+      72,704 108,692 146,680 184,664 222,650 260,628 298,646 336,666 374,684 412,696
+      450,688 488,676 526,654 564,620 602,560 640,476 678,402 716,322 754,364 792,244
+      830,294 868,362 906,250 944,306 982,218 1020,238 1058,320 1096,272 1134,382
+      1172,312 1210,230 1248,160 1286,146 1324,118 1358,88 1392,92"
+      fill="none" stroke="#ff2b2b" stroke-width="2.2"/>
+
+    <!-- 胜宏科技 blue -->
+    <polyline points="
+      72,704 108,702 146,696 184,700 222,690 260,694 298,698 336,704 374,706 412,708
+      450,704 488,696 526,700 564,706 602,704 640,694 678,686 716,690 754,680 792,672
+      830,660 868,654 906,646 944,630 982,624 1020,610 1058,600 1096,592 1134,574
+      1172,596 1210,584 1248,494 1286,386 1324,256 1358,438 1392,342"
+      fill="none" stroke="#12a7ff" stroke-width="2.2"/>
+
+    <!-- 中际旭创 green -->
+    <polyline points="
+      72,704 108,706 146,708 184,704 222,706 260,702 298,704 336,706 374,702 412,706
+      450,700 488,650 526,590 564,620 602,650 640,642 678,624 716,634 754,566 792,550
+      830,548 868,572 906,530 944,590 982,542 1020,568 1058,586 1096,620 1134,608
+      1172,660 1210,642 1248,494 1286,430 1324,264 1358,122 1392,156"
+      fill="none" stroke="#00d43b" stroke-width="2.2"/>
+
+    <!-- 中材科技 purple -->
+    <polyline points="
+      72,704 108,700 146,698 184,696 222,664 260,686 298,688 336,696 374,702 412,704
+      450,696 488,704 526,710 564,706 602,710 640,712 678,714 716,716 754,718 792,720
+      830,718 868,716 906,718 944,716 982,716 1020,714 1058,712 1096,712 1134,708
+      1172,704 1210,700 1248,696 1286,686 1324,672 1358,680 1392,676"
+      fill="none" stroke="#9a3be8" stroke-width="2.2"/>
+
+    <!-- 德福科技 amber -->
+    <polyline points="
+      72,704 108,704 146,704 184,704 222,704 260,704 298,704 336,704 374,704 412,704
+      450,704 488,704 526,704 564,704 602,704 640,710 678,716 716,720 754,724 792,726
+      830,724 868,722 906,720 944,718 982,716 1020,716 1058,714 1096,714 1134,712
+      1172,708 1210,704 1248,690 1286,682 1324,688 1358,700 1392,694"
+      fill="none" stroke="#f4b000" stroke-width="2.2"/>
+  </g>
+
+  <!-- Hover marker mock -->
+  <line x1="1210" y1="164" x2="1210" y2="724" stroke="#5b6573" stroke-width="1" stroke-dasharray="5 5"/>
+  <rect x="1048" y="178" width="184" height="118" rx="6" fill="#111827" stroke="#4b5563"/>
+  <text x="1064" y="204" class="white small">2025/09/12</text>
+  <text x="1064" y="228" style="font-family: PingFang SC, Microsoft YaHei, Arial; fill:#ff2b2b; font-size:12px;">英伟达：+742%</text>
+  <text x="1064" y="250" style="font-family: PingFang SC, Microsoft YaHei, Arial; fill:#12a7ff; font-size:12px;">胜宏科技：+301%</text>
+  <text x="1064" y="272" style="font-family: PingFang SC, Microsoft YaHei, Arial; fill:#00d43b; font-size:12px;">中际旭创：+238%</text>
+
+  <!-- Mini side note inside chart -->
+  <rect x="94" y="176" width="236" height="54" rx="6" fill="#0f172a" stroke="#344054"/>
+  <text x="112" y="200" class="white small">归一化规则：起始日收盘价 = 0%</text>
+  <text x="112" y="220" class="axis">用于比较不同市场、不同价格股票的涨幅节奏</text>
+
+  <!-- Bottom table -->
+  <rect x="24" y="812" width="1392" height="104" class="panel"/>
+  <rect x="24" y="812" width="1392" height="44" class="tableHead"/>
+  <text x="78" y="840" class="white h2">公司 / 标签</text>
+  <text x="310" y="840" class="white h2">英伟达</text>
+  <text x="508" y="840" class="white h2">胜宏科技</text>
+  <text x="706" y="840" class="white h2">中际旭创</text>
+  <text x="904" y="840" class="white h2">中材科技</text>
+  <text x="1102" y="840" class="white h2">德福科技</text>
+  <text x="1284" y="840" class="white h2">阶段判断</text>
+
+  <line x1="24" y1="856" x2="1416" y2="856" stroke="#d0d5dd"/>
+  <text x="78" y="890" class="text h2">2025年度涨幅</text>
+  <text x="310" y="890" style="font-family: PingFang SC, Microsoft YaHei, Arial; fill:#101828; font-size:18px;">51.93%</text>
+  <text x="508" y="890" style="font-family: PingFang SC, Microsoft YaHei, Arial; fill:#ff0000; font-size:18px; font-weight:800;">686.29%</text>
+  <text x="706" y="890" style="font-family: PingFang SC, Microsoft YaHei, Arial; fill:#ff0000; font-size:18px; font-weight:800;">557.90%</text>
+  <text x="904" y="890" style="font-family: PingFang SC, Microsoft YaHei, Arial; fill:#101828; font-size:18px;">174.83%</text>
+  <text x="1102" y="890" style="font-family: PingFang SC, Microsoft YaHei, Arial; fill:#101828; font-size:18px;">189.49%</text>
+  <text x="1284" y="890" class="text h2">算力硬件扩散</text>
+
+  <!-- Explanation strip -->
+  <rect x="24" y="922" width="1392" height="28" fill="#f7f9fc"/>
+  <text x="44" y="941" class="muted small">原型说明：顶部选择股票/标签，主图比较涨幅节奏，底部表格同步显示年度涨幅和阶段判断。点击曲线可进入单股K线详情。</text>
+</svg>

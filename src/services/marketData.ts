@@ -1,0 +1,562 @@
+import type {
+  Interval,
+  Market,
+  PerformancePoint,
+  PerformanceSeries,
+  PricePoint,
+  SeriesMetrics,
+  SymbolItem,
+  Tag,
+} from '../types';
+
+const cache = new Map<string, PricePoint[]>();
+const inFlightRequests = new Map<string, Promise<PricePoint[]>>();
+const CACHE_PREFIX = 'ai-trading-view.price-cache.v1.';
+const CACHE_TTL_MS = 1000 * 60 * 60 * 12;
+const FETCH_SOURCE_KEY = 'ai-trading-view.fetch-source.v1';
+const REQUEST_CONCURRENCY = 5;
+
+export function toYahooSymbol(market: Market, code: string): string {
+  const clean = code.trim().toUpperCase();
+  if (clean.includes('.')) {
+    return clean;
+  }
+
+  if (market === 'US' || market === 'CUSTOM') {
+    return clean;
+  }
+
+  if (market === 'HK') {
+    const digits = clean.replace(/\D/g, '');
+    return digits ? `${Number(digits).toString().padStart(4, '0')}.HK` : clean;
+  }
+
+  if (market === 'KR_KOSPI') {
+    return `${clean.padStart(6, '0')}.KS`;
+  }
+
+  if (market === 'KR_KOSDAQ') {
+    return `${clean.padStart(6, '0')}.KQ`;
+  }
+
+  if (market === 'CN_A') {
+    const digits = clean.replace(/\D/g, '');
+    if (!digits) {
+      return clean;
+    }
+    if (/^[468]/.test(digits)) {
+      return digits.startsWith('8') || digits.startsWith('4') ? `${digits}.BJ` : `${digits}.SS`;
+    }
+    return `${digits}.SZ`;
+  }
+
+  return clean;
+}
+
+export async function fetchPriceSeries(
+  symbol: SymbolItem,
+  interval: Interval,
+  startDate: string,
+  endDate: string,
+  refresh = false,
+): Promise<PricePoint[]> {
+  const providerSymbol = toYahooSymbol(symbol.market, symbol.code);
+  const cacheKey = `${providerSymbol}|${interval}|${startDate}|${endDate}`;
+  if (!refresh && cache.has(cacheKey)) {
+    return cache.get(cacheKey) ?? [];
+  }
+  if (!refresh) {
+    const stored = readStoredPriceCache(cacheKey);
+    if (stored) {
+      cache.set(cacheKey, stored);
+      return stored;
+    }
+  }
+  const pending = inFlightRequests.get(cacheKey);
+  if (pending) {
+    return pending;
+  }
+
+  const request = requestPriceSeries(providerSymbol, cacheKey, interval, startDate, endDate);
+  inFlightRequests.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    inFlightRequests.delete(cacheKey);
+  }
+}
+
+async function requestPriceSeries(
+  providerSymbol: string,
+  cacheKey: string,
+  interval: Interval,
+  startDate: string,
+  endDate: string,
+): Promise<PricePoint[]> {
+  const period1 = Math.floor(new Date(`${startDate}T00:00:00Z`).getTime() / 1000);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  end.setUTCDate(end.getUTCDate() + 1);
+  const period2 = Math.floor(end.getTime() / 1000);
+  const params = new URLSearchParams({
+    period1: String(period1),
+    period2: String(period2),
+    interval,
+    events: 'history',
+    includeAdjustedClose: 'true',
+  });
+
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(providerSymbol)}?${params}`;
+  let payload: any;
+  try {
+    payload = await fetchJsonWithFallback(url);
+  } catch (error) {
+    const stored = readStoredPriceCache(cacheKey);
+    if (stored) {
+      cache.set(cacheKey, stored);
+      return stored;
+    }
+    throw error;
+  }
+  const error = payload?.chart?.error;
+  if (error) {
+    throw new Error(`${providerSymbol}: ${error.description ?? '暂无行情'}`);
+  }
+
+  const result = payload?.chart?.result?.[0];
+  if (!result) {
+    throw new Error(`${providerSymbol} 暂无行情`);
+  }
+
+  const timestamps: number[] = result.timestamp ?? [];
+  const quote = result.indicators?.quote?.[0] ?? {};
+  const closes: Array<number | null> = quote.close ?? [];
+  const volumes: Array<number | null> = quote.volume ?? [];
+  const adjusted: Array<number | null> = result.indicators?.adjclose?.[0]?.adjclose ?? [];
+
+  const byDate = new Map<string, PricePoint>();
+  timestamps.forEach((timestamp, index) => {
+    const close = adjusted[index] && adjusted[index]! > 0 ? adjusted[index] : closes[index];
+    if (!close || close <= 0) {
+      return;
+    }
+    const date = new Date(timestamp * 1000).toISOString().slice(0, 10);
+    byDate.set(date, {
+      date,
+      close,
+      rawClose: closes[index],
+      volume: volumes[index],
+    });
+  });
+
+  const series = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+  cache.set(cacheKey, series);
+  writeStoredPriceCache(cacheKey, series);
+  return series;
+}
+
+function readStoredPriceCache(cacheKey: string): PricePoint[] | null {
+  try {
+    const raw = window.localStorage.getItem(`${CACHE_PREFIX}${cacheKey}`);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as { savedAt: number; data: PricePoint[] };
+    if (!Array.isArray(parsed.data) || Date.now() - parsed.savedAt > CACHE_TTL_MS) {
+      window.localStorage.removeItem(`${CACHE_PREFIX}${cacheKey}`);
+      return null;
+    }
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredPriceCache(cacheKey: string, data: PricePoint[]): void {
+  try {
+    window.localStorage.setItem(
+      `${CACHE_PREFIX}${cacheKey}`,
+      JSON.stringify({
+        savedAt: Date.now(),
+        data,
+      }),
+    );
+  } catch {
+    // Browser storage can be full; memory cache still works for this session.
+  }
+}
+
+async function fetchJsonWithFallback(url: string): Promise<any> {
+  const candidates = getOrderedFetchCandidates(url);
+  const errors: string[] = [];
+
+  for (const candidate of candidates) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await fetchWithTimeout(candidate.url, 14000);
+        if (!response.ok) {
+          errors.push(`${candidate.label}:${response.status}`);
+          if (response.status === 429) {
+            await sleep(1200 + attempt * 1800);
+            continue;
+          }
+          break;
+        }
+        writePreferredFetchSource(candidate.id);
+        return await response.json();
+      } catch (error) {
+        errors.push(`${candidate.label}:${error instanceof Error ? error.message : '请求失败'}`);
+        await sleep(350 + attempt * 800);
+      }
+    }
+  }
+
+  throw new Error(`行情请求失败：${errors[errors.length - 1] ?? '网络或跨域限制'}`);
+}
+
+function getOrderedFetchCandidates(url: string) {
+  const encoded = encodeURIComponent(url);
+  const candidates = [
+    {
+      id: 'allorigins',
+      label: 'allorigins',
+      url: `https://api.allorigins.win/raw?url=${encoded}`,
+    },
+    {
+      id: 'corsproxy',
+      label: 'corsproxy',
+      url: `https://corsproxy.io/?${encoded}`,
+    },
+    {
+      id: 'direct',
+      label: 'direct',
+      url,
+    },
+  ];
+  const preferred = readPreferredFetchSource();
+  if (!preferred) {
+    return candidates;
+  }
+  return [...candidates].sort((a, b) => {
+    if (a.id === preferred) {
+      return -1;
+    }
+    if (b.id === preferred) {
+      return 1;
+    }
+    return 0;
+  });
+}
+
+function readPreferredFetchSource(): string | null {
+  try {
+    return window.localStorage.getItem(FETCH_SOURCE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writePreferredFetchSource(sourceId: string): void {
+  try {
+    window.localStorage.setItem(FETCH_SOURCE_KEY, sourceId);
+  } catch {
+    // Ignore storage failures; it only affects future request ordering.
+  }
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+export async function buildPerformanceSeries(
+  symbols: SymbolItem[],
+  tags: Tag[],
+  mode: 'symbols' | 'tags' | 'mixed',
+  interval: Interval,
+  startDate: string,
+  endDate: string,
+  selectedTagIds: string[],
+  refresh = false,
+): Promise<{ series: PerformanceSeries[]; warnings: string[] }> {
+  const tagMap = new Map(tags.map((tag) => [tag.id, tag]));
+  const loaded = await mapWithConcurrency(symbols, REQUEST_CONCURRENCY, async (symbol) => {
+      const prices = await fetchPriceSeries(symbol, interval, startDate, endDate, refresh);
+      return buildSymbolPerformance(symbol, prices, tagMap);
+  });
+
+  const symbolSeries: PerformanceSeries[] = [];
+  const warnings: string[] = [];
+  loaded.forEach((result, index) => {
+    const symbol = symbols[index];
+    if (result.ok && result.value.data.length) {
+      symbolSeries.push(result.value);
+    } else {
+      const providerSymbol = toYahooSymbol(symbol.market, symbol.code);
+      const message = !result.ok ? result.error.message : '暂无有效行情';
+      warnings.push(`${symbol.name}(${providerSymbol})：${message}`);
+    }
+  });
+
+  const output: PerformanceSeries[] = [];
+  if (mode === 'symbols' || mode === 'mixed') {
+    output.push(...symbolSeries);
+  }
+  if (mode === 'tags' || mode === 'mixed') {
+    output.push(...buildTagAggregates(selectedTagIds, symbolSeries, tagMap));
+  }
+
+  return { series: output, warnings };
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<Array<{ ok: true; value: R } | { ok: false; error: Error }>> {
+  const results: Array<{ ok: true; value: R } | { ok: false; error: Error }> = [];
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      try {
+        results[index] = { ok: true, value: await mapper(items[index], index) };
+      } catch (error) {
+        results[index] = {
+          ok: false,
+          error: error instanceof Error ? error : new Error('行情请求失败'),
+        };
+      }
+      await sleep(80);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
+function buildSymbolPerformance(
+  symbol: SymbolItem,
+  prices: PricePoint[],
+  tagMap: Map<string, Tag>,
+): PerformanceSeries {
+  const first = prices[0]?.close;
+  const points: PerformancePoint[] = first
+    ? prices.map((item) => ({
+        date: item.date,
+        value: round((item.close / first - 1) * 100),
+        close: item.close,
+      }))
+    : [];
+  const repairedPoints = repairNeedleSpikes(points);
+  const color = getSymbolColor(symbol, tagMap);
+  const tagNames = symbol.tagIds.map((tagId) => tagMap.get(tagId)?.name).filter(Boolean) as string[];
+  return {
+    id: symbol.id,
+    type: 'symbol',
+    name: symbol.name,
+    label: symbol.name,
+    color,
+    market: symbol.market,
+    code: symbol.code,
+    tagIds: symbol.tagIds,
+    tagNames,
+    data: repairedPoints,
+    metrics: computeMetrics(repairedPoints),
+  };
+}
+
+function getSymbolColor(symbol: SymbolItem, tagMap: Map<string, Tag>): string {
+  if (symbol.lineColor) {
+    return symbol.lineColor;
+  }
+  const primaryTagId =
+    symbol.tagIds.find((id) => tagMap.get(id)?.category === '产业链环节') ??
+    symbol.tagIds.find((id) => tagMap.get(id)?.category === '产业链位置') ??
+    symbol.tagIds[0];
+  return tagMap.get(primaryTagId)?.color ?? '#94a3b8';
+}
+
+function buildTagAggregates(
+  tagIds: string[],
+  symbolSeries: PerformanceSeries[],
+  tagMap: Map<string, Tag>,
+): PerformanceSeries[] {
+  return tagIds.flatMap((tagId) => {
+    const tag = tagMap.get(tagId);
+    if (!tag) {
+      return [];
+    }
+    const members = symbolSeries.filter((series) => series.tagIds.includes(tagId));
+    if (!members.length) {
+      return [];
+    }
+    const data = averageSeries(members);
+    return [
+      {
+        id: `tag-${tagId}`,
+        type: 'tag',
+        name: tag.name,
+        label: tag.name,
+        color: tag.color,
+        market: 'TAG' as const,
+        code: tag.id,
+        tagIds: [tag.id],
+        tagNames: [tag.name],
+        memberCount: members.length,
+        members: members.map((member) => ({
+          id: member.id,
+          name: member.name,
+          market: member.market,
+          code: member.code,
+        })),
+        data,
+        metrics: computeMetrics(data),
+      },
+    ];
+  });
+}
+
+function averageSeries(seriesList: PerformanceSeries[]): PerformancePoint[] {
+  const allDates = Array.from(
+    new Set(seriesList.flatMap((series) => series.data.map((point) => point.date))),
+  ).sort((a, b) => a.localeCompare(b));
+  const cursors = seriesList.map((series) => ({
+    data: series.data,
+    index: -1,
+    lastValue: null as number | null,
+  }));
+  const points: PerformancePoint[] = [];
+
+  allDates.forEach((date) => {
+    const values: number[] = [];
+    cursors.forEach((cursor) => {
+      while (cursor.index + 1 < cursor.data.length && cursor.data[cursor.index + 1].date <= date) {
+        cursor.index += 1;
+        cursor.lastValue = cursor.data[cursor.index].value;
+      }
+      if (cursor.lastValue !== null) {
+        values.push(cursor.lastValue);
+      }
+    });
+    if (values.length) {
+      points.push({
+        date,
+        value: round(values.reduce((sum, value) => sum + value, 0) / values.length),
+        close: null,
+      });
+    }
+  });
+
+  return repairNeedleSpikes(points);
+}
+
+function repairNeedleSpikes(points: PerformancePoint[]): PerformancePoint[] {
+  if (points.length < 3) {
+    return points;
+  }
+  const repaired = points.map((point) => ({ ...point }));
+  for (let index = 1; index < repaired.length - 1; index += 1) {
+    const previous = repaired[index - 1].value;
+    const current = repaired[index].value;
+    const next = repaired[index + 1].value;
+    const jumpIn = current - previous;
+    const jumpOut = next - current;
+    const neighborMove = next - previous;
+    const isNeedle =
+      Math.abs(jumpIn) > 180 &&
+      Math.abs(jumpOut) > 180 &&
+      Math.sign(jumpIn) !== Math.sign(jumpOut) &&
+      Math.abs(neighborMove) < 90;
+    if (isNeedle) {
+      repaired[index].value = round((previous + next) / 2);
+    }
+  }
+  return repaired;
+}
+
+export function computeMetrics(points: PerformancePoint[]): SeriesMetrics {
+  if (!points.length) {
+    return {
+      rangeReturn: null,
+      ytdReturn: null,
+      maxDrawdown: null,
+      startDate: null,
+      lastDate: null,
+      stage: '无数据',
+    };
+  }
+
+  const rangeReturn = points[points.length - 1].value;
+  const lastYear = points[points.length - 1].date.slice(0, 4);
+  const ytdPoints = points.filter((point) => point.date.startsWith(lastYear));
+  let ytdReturn: number | null = null;
+  if (ytdPoints.length) {
+    const firstFactor = 1 + ytdPoints[0].value / 100;
+    const lastFactor = 1 + ytdPoints[ytdPoints.length - 1].value / 100;
+    ytdReturn = firstFactor > 0 ? round((lastFactor / firstFactor - 1) * 100) : null;
+  }
+
+  let peak = -Infinity;
+  let maxDrawdown = 0;
+  points.forEach((point) => {
+    const factor = 1 + point.value / 100;
+    peak = Math.max(peak, factor);
+    if (peak > 0) {
+      maxDrawdown = Math.min(maxDrawdown, factor / peak - 1);
+    }
+  });
+
+  return {
+    rangeReturn: round(rangeReturn),
+    ytdReturn,
+    maxDrawdown: round(maxDrawdown * 100),
+    startDate: points[0].date,
+    lastDate: points[points.length - 1].date,
+    stage: inferStage(points),
+  };
+}
+
+function inferStage(points: PerformancePoint[]): string {
+  if (points.length < 8) {
+    return '数据不足';
+  }
+  const last = points[points.length - 1].value;
+  const recent = last - points[Math.max(0, points.length - 8)].value;
+  const peak = Math.max(...points.map((point) => point.value));
+  const drawdownFromPeak = last - peak;
+
+  if (last < 5 && recent < 3) {
+    return '沉寂';
+  }
+  if (recent > 20 && last < 80) {
+    return '启动';
+  }
+  if (recent > 30 && last >= 80) {
+    return '加速';
+  }
+  if (drawdownFromPeak < -25 && last > 80) {
+    return '高位分化';
+  }
+  if (last > 120) {
+    return '主升/验证';
+  }
+  if (last > 30) {
+    return '扩散';
+  }
+  return '观察';
+}
+
+function round(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}

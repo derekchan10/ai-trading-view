@@ -1,0 +1,295 @@
+<svg width="1440" height="920" viewBox="0 0 1440 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .bg { fill: #f4f7fb; }
+      .panel { fill: #ffffff; stroke: #dce3ee; stroke-width: 1; }
+      .soft { fill: #f8fafc; stroke: #e5ebf3; stroke-width: 1; }
+      .text { fill: #172033; font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; }
+      .muted { fill: #667085; font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; }
+      .small { font-size: 13px; }
+      .body { font-size: 15px; }
+      .title { font-size: 22px; font-weight: 700; }
+      .h2 { font-size: 17px; font-weight: 700; }
+      .h3 { font-size: 15px; font-weight: 700; }
+      .chipText { fill: #ffffff; font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 12px; font-weight: 700; }
+      .btnText { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 13px; font-weight: 700; }
+      .line { stroke: #cbd5e1; stroke-width: 1; }
+      .grid { stroke: #edf2f7; stroke-width: 1; }
+      .up { fill: #e23d3d; }
+      .down { fill: #22a06b; }
+    </style>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#1f2937" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+
+  <rect class="bg" width="1440" height="920"/>
+
+  <!-- Header -->
+  <rect x="24" y="20" width="1392" height="72" rx="8" class="panel" filter="url(#shadow)"/>
+  <text x="48" y="50" class="text title">产业链阶段看板</text>
+  <text x="48" y="75" class="muted small">多市场股票池 · 多维标签 · K线联动 · 看整条产业链处在什么阶段</text>
+
+  <rect x="745" y="34" width="52" height="34" rx="6" fill="#172033"/>
+  <text x="760" y="56" class="chipText">日K</text>
+  <rect x="805" y="34" width="52" height="34" rx="6" fill="#eef2f7"/>
+  <text x="820" y="56" class="text btnText">周K</text>
+  <rect x="865" y="34" width="52" height="34" rx="6" fill="#eef2f7"/>
+  <text x="880" y="56" class="text btnText">月K</text>
+  <rect x="935" y="34" width="52" height="34" rx="6" fill="#eff6ff"/>
+  <text x="952" y="56" class="text btnText">A股</text>
+  <rect x="995" y="34" width="54" height="34" rx="6" fill="#eff6ff"/>
+  <text x="1013" y="56" class="text btnText">美股</text>
+  <rect x="1057" y="34" width="54" height="34" rx="6" fill="#eff6ff"/>
+  <text x="1075" y="56" class="text btnText">港股</text>
+  <rect x="1119" y="34" width="66" height="34" rx="6" fill="#eff6ff"/>
+  <text x="1135" y="56" class="text btnText">韩国股</text>
+
+  <rect x="1210" y="34" width="168" height="34" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1227" y="56" class="muted small">搜索股票 / 标签</text>
+
+  <!-- Sidebar -->
+  <rect x="24" y="112" width="262" height="776" rx="8" class="panel" filter="url(#shadow)"/>
+  <text x="44" y="142" class="text h2">看板视图</text>
+  <rect x="44" y="158" width="216" height="36" rx="6" fill="#172033"/>
+  <text x="86" y="181" class="chipText">按产业链</text>
+  <rect x="44" y="204" width="102" height="34" rx="6" fill="#f1f5f9"/>
+  <text x="75" y="226" class="text btnText">按主体</text>
+  <rect x="158" y="204" width="102" height="34" rx="6" fill="#f1f5f9"/>
+  <text x="189" y="226" class="text btnText">按标签</text>
+
+  <text x="44" y="270" class="text h2">标签颜色</text>
+  <circle cx="54" cy="298" r="6" fill="#14b8a6"/>
+  <text x="70" y="303" class="text body">上游材料</text>
+  <circle cx="54" cy="328" r="6" fill="#8b5cf6"/>
+  <text x="70" y="333" class="text body">芯片 / 封装</text>
+  <circle cx="54" cy="358" r="6" fill="#2563eb"/>
+  <text x="70" y="363" class="text body">算力硬件</text>
+  <circle cx="54" cy="388" r="6" fill="#16a34a"/>
+  <text x="70" y="393" class="text body">数据中心</text>
+  <circle cx="54" cy="418" r="6" fill="#f97316"/>
+  <text x="70" y="423" class="text body">主体链</text>
+
+  <text x="44" y="476" class="text h2">筛选标签</text>
+  <rect x="44" y="494" width="78" height="30" rx="15" fill="#ecfeff" stroke="#14b8a6"/>
+  <text x="64" y="514" class="text small">上游</text>
+  <rect x="130" y="494" width="88" height="30" rx="15" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="151" y="514" class="text small">封装</text>
+  <rect x="44" y="536" width="92" height="30" rx="15" fill="#eff6ff" stroke="#2563eb"/>
+  <text x="62" y="556" class="text small">光模块</text>
+  <rect x="144" y="536" width="96" height="30" rx="15" fill="#fff7ed" stroke="#f97316"/>
+  <text x="162" y="556" class="text small">英伟达链</text>
+  <rect x="44" y="578" width="92" height="30" rx="15" fill="#f0fdf4" stroke="#16a34a"/>
+  <text x="62" y="598" class="text small">液冷</text>
+  <rect x="144" y="578" width="96" height="30" rx="15" fill="#fff7ed" stroke="#f97316"/>
+  <text x="162" y="598" class="text small">华为链</text>
+
+  <text x="44" y="660" class="text h2">你主要看什么</text>
+  <rect x="44" y="680" width="216" height="54" rx="7" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="60" y="704" class="text h3">1. 哪一层先启动</text>
+  <text x="60" y="724" class="muted small">龙头先涨，还是整层扩散</text>
+  <rect x="44" y="746" width="216" height="54" rx="7" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="60" y="770" class="text h3">2. 有没有传导</text>
+  <text x="60" y="790" class="muted small">上游 → 中游 → 下游</text>
+  <rect x="44" y="812" width="216" height="54" rx="7" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="60" y="836" class="text h3">3. 是否高位分化</text>
+  <text x="60" y="856" class="muted small">龙头新高，跟随股掉队</text>
+
+  <!-- Main map -->
+  <rect x="306" y="112" width="778" height="586" rx="8" class="panel" filter="url(#shadow)"/>
+  <text x="328" y="144" class="text h2">产业链全景</text>
+  <text x="438" y="144" class="muted small">每一列代表一个产业链位置；每张股票卡片点击后右侧联动 K 线</text>
+
+  <!-- Chain columns -->
+  <g transform="translate(328,166)">
+    <!-- Col 1 -->
+    <rect x="0" y="0" width="140" height="484" rx="8" fill="#f7feff" stroke="#bae6fd"/>
+    <rect x="0" y="0" width="140" height="42" rx="8" fill="#14b8a6"/>
+    <text x="21" y="27" class="chipText">上游材料</text>
+    <rect x="18" y="58" width="104" height="26" rx="13" fill="#ccfbf1"/>
+    <text x="37" y="76" class="text small">预期启动</text>
+    <rect x="18" y="98" width="104" height="64" rx="7" fill="#ffffff" stroke="#14b8a6"/>
+    <text x="30" y="122" class="text h3">生益科技</text>
+    <text x="30" y="146" class="muted small">A股 · 覆铜板</text>
+    <rect x="18" y="174" width="104" height="64" rx="7" fill="#ffffff" stroke="#14b8a6"/>
+    <text x="30" y="198" class="text h3">联瑞新材</text>
+    <text x="30" y="222" class="muted small">A股 · 粉体</text>
+    <rect x="18" y="250" width="104" height="64" rx="7" fill="#ffffff" stroke="#14b8a6"/>
+    <text x="30" y="274" class="text h3">飞荣达</text>
+    <text x="30" y="298" class="muted small">A股 · 热管理</text>
+    <line x1="36" y1="363" x2="58" y2="348" stroke="#14b8a6" stroke-width="3"/>
+    <line x1="58" y1="348" x2="80" y2="354" stroke="#14b8a6" stroke-width="3"/>
+    <line x1="80" y1="354" x2="106" y2="328" stroke="#14b8a6" stroke-width="3"/>
+    <text x="22" y="416" class="muted small">强度 38 / 100</text>
+    <rect x="22" y="430" width="96" height="8" rx="4" fill="#e2e8f0"/>
+    <rect x="22" y="430" width="36" height="8" rx="4" fill="#14b8a6"/>
+
+    <!-- Arrow -->
+    <path d="M151 238 L175 238" stroke="#94a3b8" stroke-width="2"/>
+    <path d="M175 238 L168 232 M175 238 L168 246" stroke="#94a3b8" stroke-width="2"/>
+
+    <!-- Col 2 -->
+    <rect x="188" y="0" width="140" height="484" rx="8" fill="#fbfaff" stroke="#ddd6fe"/>
+    <rect x="188" y="0" width="140" height="42" rx="8" fill="#8b5cf6"/>
+    <text x="211" y="27" class="chipText">芯片 / 半导体</text>
+    <rect x="206" y="58" width="104" height="26" rx="13" fill="#ede9fe"/>
+    <text x="225" y="76" class="text small">扩散上涨</text>
+    <rect x="206" y="98" width="104" height="64" rx="7" fill="#ffffff" stroke="#8b5cf6"/>
+    <text x="218" y="122" class="text h3">寒武纪</text>
+    <text x="218" y="146" class="muted small">A股 · AI芯片</text>
+    <rect x="206" y="174" width="104" height="64" rx="7" fill="#ffffff" stroke="#8b5cf6"/>
+    <text x="218" y="198" class="text h3">NVDA</text>
+    <text x="218" y="222" class="muted small">美股 · GPU</text>
+    <rect x="206" y="250" width="104" height="64" rx="7" fill="#ffffff" stroke="#8b5cf6"/>
+    <text x="218" y="274" class="text h3">三星电子</text>
+    <text x="218" y="298" class="muted small">韩股 · 存储</text>
+    <line x1="224" y1="360" x2="246" y2="340" stroke="#8b5cf6" stroke-width="3"/>
+    <line x1="246" y1="340" x2="268" y2="326" stroke="#8b5cf6" stroke-width="3"/>
+    <line x1="268" y1="326" x2="294" y2="318" stroke="#8b5cf6" stroke-width="3"/>
+    <text x="210" y="416" class="muted small">强度 62 / 100</text>
+    <rect x="210" y="430" width="96" height="8" rx="4" fill="#e2e8f0"/>
+    <rect x="210" y="430" width="60" height="8" rx="4" fill="#8b5cf6"/>
+
+    <path d="M339 238 L363 238" stroke="#94a3b8" stroke-width="2"/>
+    <path d="M363 238 L356 232 M363 238 L356 246" stroke="#94a3b8" stroke-width="2"/>
+
+    <!-- Col 3 -->
+    <rect x="376" y="0" width="140" height="484" rx="8" fill="#fffaf5" stroke="#fed7aa"/>
+    <rect x="376" y="0" width="140" height="42" rx="8" fill="#f97316"/>
+    <text x="403" y="27" class="chipText">先进封装</text>
+    <rect x="394" y="58" width="104" height="26" rx="13" fill="#ffedd5"/>
+    <text x="413" y="76" class="text small">业绩验证</text>
+    <rect x="394" y="98" width="104" height="64" rx="7" fill="#ffffff" stroke="#f97316"/>
+    <text x="406" y="122" class="text h3">长电科技</text>
+    <text x="406" y="146" class="muted small">A股 · 封测</text>
+    <rect x="394" y="174" width="104" height="64" rx="7" fill="#ffffff" stroke="#f97316"/>
+    <text x="406" y="198" class="text h3">华海诚科</text>
+    <text x="406" y="222" class="muted small">A股 · 材料</text>
+    <rect x="394" y="250" width="104" height="64" rx="7" fill="#ffffff" stroke="#f97316"/>
+    <text x="406" y="274" class="text h3">TSM</text>
+    <text x="406" y="298" class="muted small">美股 · Foundry</text>
+    <line x1="412" y1="342" x2="434" y2="318" stroke="#f97316" stroke-width="3"/>
+    <line x1="434" y1="318" x2="456" y2="330" stroke="#f97316" stroke-width="3"/>
+    <line x1="456" y1="330" x2="482" y2="306" stroke="#f97316" stroke-width="3"/>
+    <text x="398" y="416" class="muted small">强度 71 / 100</text>
+    <rect x="398" y="430" width="96" height="8" rx="4" fill="#e2e8f0"/>
+    <rect x="398" y="430" width="68" height="8" rx="4" fill="#f97316"/>
+
+    <path d="M527 238 L551 238" stroke="#94a3b8" stroke-width="2"/>
+    <path d="M551 238 L544 232 M551 238 L544 246" stroke="#94a3b8" stroke-width="2"/>
+
+    <!-- Col 4 -->
+    <rect x="564" y="0" width="140" height="484" rx="8" fill="#f8fbff" stroke="#bfdbfe"/>
+    <rect x="564" y="0" width="140" height="42" rx="8" fill="#2563eb"/>
+    <text x="591" y="27" class="chipText">算力硬件</text>
+    <rect x="582" y="58" width="104" height="26" rx="13" fill="#dbeafe"/>
+    <text x="601" y="76" class="text small">高位分化</text>
+    <rect x="582" y="98" width="104" height="64" rx="7" fill="#ffffff" stroke="#2563eb"/>
+    <text x="594" y="122" class="text h3">新易盛</text>
+    <text x="594" y="146" class="muted small">A股 · 光模块</text>
+    <rect x="582" y="174" width="104" height="64" rx="7" fill="#ffffff" stroke="#2563eb"/>
+    <text x="594" y="198" class="text h3">工业富联</text>
+    <text x="594" y="222" class="muted small">A股 · 服务器</text>
+    <rect x="582" y="250" width="104" height="64" rx="7" fill="#ffffff" stroke="#2563eb"/>
+    <text x="594" y="274" class="text h3">ANET</text>
+    <text x="594" y="298" class="muted small">美股 · 交换机</text>
+    <line x1="600" y1="316" x2="622" y2="292" stroke="#2563eb" stroke-width="3"/>
+    <line x1="622" y1="292" x2="644" y2="306" stroke="#2563eb" stroke-width="3"/>
+    <line x1="644" y1="306" x2="670" y2="296" stroke="#2563eb" stroke-width="3"/>
+    <text x="586" y="416" class="muted small">强度 84 / 100</text>
+    <rect x="586" y="430" width="96" height="8" rx="4" fill="#e2e8f0"/>
+    <rect x="586" y="430" width="80" height="8" rx="4" fill="#2563eb"/>
+  </g>
+
+  <!-- Data center lane -->
+  <rect x="328" y="664" width="732" height="60" rx="8" fill="#f0fdf4" stroke="#bbf7d0"/>
+  <rect x="328" y="664" width="112" height="60" rx="8" fill="#16a34a"/>
+  <text x="350" y="700" class="chipText">数据中心</text>
+  <text x="462" y="690" class="text h3">液冷 / 温控：英维克 · 申菱环境 · 高澜股份</text>
+  <text x="462" y="714" class="muted small">阶段：扩散上涨 · 观察是否从硬件端传导到基础设施端</text>
+
+  <!-- Right panel -->
+  <rect x="1104" y="112" width="312" height="776" rx="8" class="panel" filter="url(#shadow)"/>
+  <text x="1126" y="144" class="text h2">联动 K 线区</text>
+  <text x="1126" y="168" class="muted small">点击左侧任意环节或股票后，这里同步变化</text>
+
+  <rect x="1126" y="188" width="268" height="54" rx="7" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="1142" y="211" class="text h3">新易盛</text>
+  <text x="1200" y="211" class="muted small">300502 · A股</text>
+  <text x="1142" y="232" class="muted small">标签：光模块 · 算力硬件 · 英伟达链</text>
+
+  <rect x="1126" y="260" width="268" height="236" rx="8" fill="#0f172a"/>
+  <line x1="1142" y1="302" x2="1378" y2="302" class="grid"/>
+  <line x1="1142" y1="350" x2="1378" y2="350" class="grid"/>
+  <line x1="1142" y1="398" x2="1378" y2="398" class="grid"/>
+  <line x1="1142" y1="446" x2="1378" y2="446" class="grid"/>
+  <g>
+    <line x1="1160" y1="372" x2="1160" y2="432" stroke="#22a06b" stroke-width="2"/>
+    <rect x="1154" y="388" width="12" height="28" class="down"/>
+    <line x1="1182" y1="360" x2="1182" y2="414" stroke="#e23d3d" stroke-width="2"/>
+    <rect x="1176" y="372" width="12" height="30" class="up"/>
+    <line x1="1204" y1="338" x2="1204" y2="402" stroke="#e23d3d" stroke-width="2"/>
+    <rect x="1198" y="350" width="12" height="34" class="up"/>
+    <line x1="1226" y1="320" x2="1226" y2="388" stroke="#e23d3d" stroke-width="2"/>
+    <rect x="1220" y="334" width="12" height="44" class="up"/>
+    <line x1="1248" y1="300" x2="1248" y2="374" stroke="#e23d3d" stroke-width="2"/>
+    <rect x="1242" y="314" width="12" height="46" class="up"/>
+    <line x1="1270" y1="322" x2="1270" y2="386" stroke="#22a06b" stroke-width="2"/>
+    <rect x="1264" y="336" width="12" height="36" class="down"/>
+    <line x1="1292" y1="306" x2="1292" y2="370" stroke="#e23d3d" stroke-width="2"/>
+    <rect x="1286" y="320" width="12" height="34" class="up"/>
+    <line x1="1314" y1="292" x2="1314" y2="358" stroke="#e23d3d" stroke-width="2"/>
+    <rect x="1308" y="308" width="12" height="30" class="up"/>
+    <line x1="1336" y1="318" x2="1336" y2="380" stroke="#22a06b" stroke-width="2"/>
+    <rect x="1330" y="332" width="12" height="42" class="down"/>
+    <line x1="1358" y1="284" x2="1358" y2="350" stroke="#e23d3d" stroke-width="2"/>
+    <rect x="1352" y="298" width="12" height="32" class="up"/>
+  </g>
+  <text x="1144" y="478" fill="#cbd5e1" font-size="12" font-family="PingFang SC, Microsoft YaHei, Arial">主K线：形态、均线、成交量后续可叠加</text>
+
+  <text x="1126" y="532" class="text h2">同环节小K线矩阵</text>
+  <g transform="translate(1126,552)">
+    <rect x="0" y="0" width="126" height="86" rx="7" class="soft"/>
+    <text x="10" y="22" class="text small">中际旭创</text>
+    <path d="M12 66 L34 54 L58 58 L84 42 L112 34" stroke="#2563eb" stroke-width="3" fill="none"/>
+    <rect x="142" y="0" width="126" height="86" rx="7" class="soft"/>
+    <text x="152" y="22" class="text small">天孚通信</text>
+    <path d="M154 64 L178 48 L202 40 L226 46 L254 30" stroke="#2563eb" stroke-width="3" fill="none"/>
+    <rect x="0" y="102" width="126" height="86" rx="7" class="soft"/>
+    <text x="10" y="124" class="text small">光迅科技</text>
+    <path d="M12 168 L36 160 L60 150 L84 154 L112 142" stroke="#2563eb" stroke-width="3" fill="none"/>
+    <rect x="142" y="102" width="126" height="86" rx="7" class="soft"/>
+    <text x="152" y="124" class="text small">华工科技</text>
+    <path d="M154 166 L178 150 L202 156 L226 142 L254 148" stroke="#2563eb" stroke-width="3" fill="none"/>
+  </g>
+
+  <rect x="1126" y="770" width="268" height="54" rx="7" fill="#fff7ed" stroke="#fed7aa"/>
+  <text x="1142" y="793" class="text h3">系统提示</text>
+  <text x="1142" y="815" class="muted small">算力硬件强度高，但内部已有分化，</text>
+  <text x="1142" y="835" class="muted small">重点看是否继续传导到液冷和IDC。</text>
+
+  <!-- Bottom legend -->
+  <rect x="306" y="742" width="778" height="146" rx="8" class="panel" filter="url(#shadow)"/>
+  <text x="328" y="774" class="text h2">阶段怎么读</text>
+  <g transform="translate(328,794)">
+    <rect x="0" y="0" width="118" height="66" rx="8" fill="#f1f5f9" stroke="#cbd5e1"/>
+    <text x="22" y="26" class="text h3">沉寂期</text>
+    <text x="16" y="48" class="muted small">多数弱于市场</text>
+    <rect x="130" y="0" width="118" height="66" rx="8" fill="#ecfeff" stroke="#67e8f9"/>
+    <text x="149" y="26" class="text h3">预期启动</text>
+    <text x="146" y="48" class="muted small">龙头先动</text>
+    <rect x="260" y="0" width="118" height="66" rx="8" fill="#eff6ff" stroke="#93c5fd"/>
+    <text x="279" y="26" class="text h3">扩散上涨</text>
+    <text x="274" y="48" class="muted small">多数跟涨</text>
+    <rect x="390" y="0" width="118" height="66" rx="8" fill="#fff7ed" stroke="#fdba74"/>
+    <text x="409" y="26" class="text h3">业绩验证</text>
+    <text x="406" y="48" class="muted small">订单兑现</text>
+    <rect x="520" y="0" width="118" height="66" rx="8" fill="#fef2f2" stroke="#fca5a5"/>
+    <text x="539" y="26" class="text h3">高位分化</text>
+    <text x="535" y="48" class="muted small">龙头强，跟随弱</text>
+    <rect x="650" y="0" width="118" height="66" rx="8" fill="#f8fafc" stroke="#94a3b8"/>
+    <text x="679" y="26" class="text h3">退潮</text>
+    <text x="666" y="48" class="muted small">放量下跌</text>
+  </g>
+  <text x="328" y="878" class="muted small">一句话：先看中间“产业链全景”的阶段和强度，再点环节看右侧 K 线矩阵，最后点单股看主K线。</text>
+</svg>
