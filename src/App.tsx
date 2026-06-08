@@ -21,6 +21,7 @@ import type { AppState, ChartMode, Interval, Market, PerformanceSeries, SymbolIt
 import './styles.css';
 
 type CssVars = CSSProperties & Record<`--${string}`, string>;
+type BatchMarketFilter = Market | 'ALL';
 
 const markets: Array<{ value: Market; label: string }> = [
   { value: 'CN_A', label: 'A股' },
@@ -86,6 +87,12 @@ const emptyBatchForm = {
   text: '',
 };
 
+const emptyBatchFilter = {
+  query: '',
+  market: 'ALL' as BatchMarketFilter,
+  tagIds: [] as string[],
+};
+
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
   const [series, setSeries] = useState<PerformanceSeries[]>([]);
@@ -96,6 +103,7 @@ export default function App() {
   const [symbolForm, setSymbolForm] = useState(emptySymbolForm);
   const [tagForm, setTagForm] = useState(createEmptyTagForm);
   const [batchForm, setBatchForm] = useState(emptyBatchForm);
+  const [batchFilter, setBatchFilter] = useState(emptyBatchFilter);
   const [bulkSymbolIds, setBulkSymbolIds] = useState<string[]>([]);
   const [bulkTagIds, setBulkTagIds] = useState<string[]>([]);
   const [activePanel, setActivePanel] = useState<'symbol' | 'tags' | 'batch' | null>(null);
@@ -204,6 +212,23 @@ export default function App() {
       .map(([category, tags]) => ({ category, tags }));
   }, [state.tags]);
 
+  const batchFilteredSymbols = useMemo(() => {
+    const keyword = batchFilter.query.trim().toLowerCase();
+    return state.symbols.filter((symbol) => {
+      if (batchFilter.market !== 'ALL' && symbol.market !== batchFilter.market) {
+        return false;
+      }
+      if (batchFilter.tagIds.length && !batchFilter.tagIds.every((tagId) => symbol.tagIds.includes(tagId))) {
+        return false;
+      }
+      if (!keyword) {
+        return true;
+      }
+      const tags = symbol.tagIds.map((id) => tagMap.get(id)?.name ?? '').join(' ');
+      return `${symbol.market} ${symbol.code} ${symbol.name} ${tags}`.toLowerCase().includes(keyword);
+    });
+  }, [batchFilter.market, batchFilter.query, batchFilter.tagIds, state.symbols, tagMap]);
+
   const tableRows = useMemo(() => {
     return [...series].sort((a, b) => (b.metrics.rangeReturn ?? -Infinity) - (a.metrics.rangeReturn ?? -Infinity));
   }, [series]);
@@ -215,6 +240,14 @@ export default function App() {
     const selectedSymbolIds = new Set(state.selectedSymbolIds);
     return filteredSymbols.every((symbol) => selectedSymbolIds.has(symbol.id));
   }, [filteredSymbols, state.selectedSymbolIds]);
+
+  const allBatchFilteredSymbolsSelected = useMemo(() => {
+    if (!batchFilteredSymbols.length) {
+      return false;
+    }
+    const selected = new Set(bulkSymbolIds);
+    return batchFilteredSymbols.every((symbol) => selected.has(symbol.id));
+  }, [batchFilteredSymbols, bulkSymbolIds]);
 
   const title = useMemo(() => {
     const startYear = state.startDate.slice(0, 4);
@@ -324,6 +357,34 @@ export default function App() {
         next.delete(tagId);
       } else {
         next.add(tagId);
+      }
+      return Array.from(next);
+    });
+  }
+
+  function toggleBatchFilterTag(tagId: string) {
+    setBatchFilter((current) => {
+      const next = new Set(current.tagIds);
+      if (next.has(tagId)) {
+        next.delete(tagId);
+      } else {
+        next.add(tagId);
+      }
+      return { ...current, tagIds: Array.from(next) };
+    });
+  }
+
+  function toggleBatchFilteredSymbols() {
+    const targetIds = new Set(batchFilteredSymbols.map((symbol) => symbol.id));
+    if (!targetIds.size) {
+      return;
+    }
+    setBulkSymbolIds((current) => {
+      const next = new Set(current);
+      if (batchFilteredSymbols.every((symbol) => next.has(symbol.id))) {
+        targetIds.forEach((id) => next.delete(id));
+      } else {
+        targetIds.forEach((id) => next.add(id));
       }
       return Array.from(next);
     });
@@ -556,6 +617,7 @@ export default function App() {
     setSymbolForm(emptySymbolForm);
     setTagForm(createEmptyTagForm());
     setBatchForm(emptyBatchForm);
+    setBatchFilter(emptyBatchFilter);
     setBulkSymbolIds([]);
     setBulkTagIds([]);
     setActivePanel(null);
@@ -918,15 +980,79 @@ export default function App() {
                   <section className="batch-section stock-batch-section">
                     <div className="batch-section-title">
                       <strong>批量选择股票</strong>
-                      <span>{bulkSymbolIds.length} / {state.symbols.length}</span>
+                      <span>
+                        已选 {bulkSymbolIds.length} · 筛出 {batchFilteredSymbols.length}/{state.symbols.length}
+                      </span>
+                    </div>
+                    <div className="batch-filter-panel">
+                      <div className="batch-filter-head">
+                        <strong>筛选</strong>
+                        <span>AND</span>
+                      </div>
+                      <div className="batch-filter-fields">
+                        <label>
+                          <span>关键词</span>
+                          <input
+                            value={batchFilter.query}
+                            placeholder="代码 / 名称 / 标签"
+                            onChange={(event) =>
+                              setBatchFilter((current) => ({ ...current, query: event.target.value }))
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>市场</span>
+                          <select
+                            value={batchFilter.market}
+                            onChange={(event) =>
+                              setBatchFilter((current) => ({
+                                ...current,
+                                market: event.target.value as BatchMarketFilter,
+                              }))
+                            }
+                          >
+                            <option value="ALL">全部市场</option>
+                            {markets.map((market) => (
+                              <option key={market.value} value={market.value}>
+                                {market.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button type="button" onClick={() => setBatchFilter(emptyBatchFilter)}>
+                          清空筛选
+                        </button>
+                      </div>
+                      <div className="batch-filter-tags">
+                        {groupedTags.map((group) => (
+                          <section key={group.category}>
+                            <b>{group.category}</b>
+                            <div>
+                              {group.tags.map((tag) => (
+                                <button
+                                  key={tag.id}
+                                  className={batchFilter.tagIds.includes(tag.id) ? 'active' : ''}
+                                  type="button"
+                                  style={{ '--tag-color': tag.color } as CssVars}
+                                  onClick={() => toggleBatchFilterTag(tag.id)}
+                                >
+                                  {batchFilter.tagIds.includes(tag.id) && <span>✓</span>}
+                                  {tag.name}
+                                </button>
+                              ))}
+                            </div>
+                          </section>
+                        ))}
+                      </div>
                     </div>
                     <div className="batch-toolbar">
                       <button
                         type="button"
-                        title="选中下面当前显示的股票列表"
-                        onClick={() => setBulkSymbolIds(filteredSymbols.map((symbol) => symbol.id))}
+                        disabled={!batchFilteredSymbols.length}
+                        title="只处理股票管理里的筛选结果"
+                        onClick={toggleBatchFilteredSymbols}
                       >
-                        全选当前列表
+                        {allBatchFilteredSymbolsSelected ? '取消筛选结果' : '选中筛选结果'}
                       </button>
                       <button
                         type="button"
@@ -940,7 +1066,7 @@ export default function App() {
                       </button>
                     </div>
                     <div className="batch-symbol-grid">
-                      {filteredSymbols.map((symbol) => {
+                      {batchFilteredSymbols.map((symbol) => {
                         const color = symbol.lineColor ?? tagMap.get(symbol.tagIds[0])?.color ?? '#94a3b8';
                         return (
                           <div
@@ -977,6 +1103,7 @@ export default function App() {
                           </div>
                         );
                       })}
+                      {!batchFilteredSymbols.length && <div className="batch-empty-state">没有符合筛选条件的股票</div>}
                     </div>
                   </section>
 

@@ -1138,7 +1138,7 @@ button {
 }
 
 .stock-batch-section {
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
 }
 
 .tag-batch-section {
@@ -1158,6 +1158,128 @@ button {
 
 .batch-section-title span {
   color: #667085;
+}
+
+.batch-filter-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.batch-filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.batch-filter-head strong {
+  color: #172033;
+  font-size: 13px;
+}
+
+.batch-filter-head span {
+  min-width: 42px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.batch-filter-fields {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(104px, 0.72fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.batch-filter-fields label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.batch-filter-fields span {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.batch-filter-fields input,
+.batch-filter-fields select {
+  width: 100%;
+  height: 30px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0 8px;
+  background: #ffffff;
+  color: #172033;
+  font-weight: 700;
+}
+
+.batch-filter-fields button {
+  min-height: 30px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.batch-filter-tags {
+  display: grid;
+  gap: 7px;
+  max-height: 112px;
+  overflow: auto;
+  padding: 7px;
+  border: 1px solid #e4e7ec;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.batch-filter-tags section {
+  display: grid;
+  gap: 5px;
+}
+
+.batch-filter-tags b {
+  color: #667085;
+  font-size: 11px;
+}
+
+.batch-filter-tags div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.batch-filter-tags button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--tag-color) 35%, #cbd5e1);
+  border-radius: 999px;
+  padding: 0 8px;
+  background: color-mix(in srgb, var(--tag-color) 10%, #ffffff);
+  color: #172033;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.batch-filter-tags button.active {
+  background: var(--tag-color);
+  color: #ffffff;
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--tag-color) 26%, transparent);
 }
 
 .batch-toolbar,
@@ -1182,6 +1304,11 @@ button {
 .batch-toolbar button:hover,
 .batch-actions button:hover {
   background: #f1f5f9;
+}
+
+.batch-toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .batch-actions button {
@@ -1286,6 +1413,18 @@ button {
   background: #f1f5f9;
 }
 
+.batch-empty-state {
+  grid-column: 1 / -1;
+  display: grid;
+  place-items: center;
+  min-height: 80px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .batch-tag-groups {
   display: grid;
   gap: 8px;
@@ -1341,6 +1480,10 @@ button {
   }
 
   .batch-import-head {
+    grid-template-columns: 1fr;
+  }
+
+  .batch-filter-fields {
     grid-template-columns: 1fr;
   }
 
