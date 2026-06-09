@@ -274,6 +274,7 @@ button {
 
 .segmented > span,
 .market-field span,
+.range-field span,
 .date-field span {
   color: #475467;
   font-size: 13px;
@@ -319,7 +320,14 @@ button {
   gap: 8px;
 }
 
-.market-field select {
+.range-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.market-field select,
+.range-field select {
   height: 32px;
   min-width: 122px;
   border: 1px solid #cbd5e1;

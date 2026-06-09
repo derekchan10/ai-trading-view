@@ -36,7 +36,18 @@ import {
   saveState,
 } from './services/storage';
 import type { WorkspaceRole, WorkspaceSession } from './services/storage';
-import type { AppState, ChartMode, Interval, Market, MarketFilter, PerformanceSeries, SymbolItem, Tag, ViewTab } from './types';
+import type {
+  AppState,
+  ChartMode,
+  DateRangePreset,
+  Interval,
+  Market,
+  MarketFilter,
+  PerformanceSeries,
+  SymbolItem,
+  Tag,
+  ViewTab,
+} from './types';
 import './styles.css';
 
 type CssVars = CSSProperties & Record<`--${string}`, string>;
@@ -63,6 +74,17 @@ const intervalOptions: Array<{ value: Interval; label: string }> = [
   { value: '1d', label: '日线' },
   { value: '1wk', label: '周线' },
   { value: '1mo', label: '月线' },
+];
+
+const dateRangeOptions: Array<{ value: DateRangePreset; label: string }> = [
+  { value: 'custom', label: '自定义' },
+  { value: '1w', label: '近1周' },
+  { value: '2w', label: '近2周' },
+  { value: '1m', label: '近1月' },
+  { value: '3m', label: '近3月' },
+  { value: '6m', label: '近6月' },
+  { value: '1y', label: '近1年' },
+  { value: 'ytd', label: '年初至今' },
 ];
 
 const emptySymbolForm = {
@@ -240,6 +262,7 @@ export default function App() {
     setState((current) => syncActiveViewTab(current));
   }, [
     state.activeViewId,
+    state.dateRangePreset,
     state.endDate,
     state.interval,
     state.marketFilter,
@@ -414,6 +437,17 @@ export default function App() {
 
   function updateState(patch: Partial<AppState>) {
     setState((current) => ({ ...current, ...patch }));
+  }
+
+  function updateDateRangePreset(dateRangePreset: DateRangePreset) {
+    if (dateRangePreset === 'custom') {
+      updateState({ dateRangePreset });
+      return;
+    }
+    updateState({
+      dateRangePreset,
+      ...resolveRelativeDateRange(dateRangePreset),
+    });
   }
 
   function selectViewTab(viewId: string) {
@@ -1102,13 +1136,34 @@ export default function App() {
           options={intervalOptions}
           onChange={(value) => updateState({ interval: value })}
         />
+        <label className="range-field">
+          <span>区间</span>
+          <select
+            value={state.dateRangePreset}
+            onChange={(event) => updateDateRangePreset(event.target.value as DateRangePreset)}
+          >
+            {dateRangeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="date-field">
           <span>开始</span>
-          <input value={state.startDate} type="date" onChange={(event) => updateState({ startDate: event.target.value })} />
+          <input
+            value={state.startDate}
+            type="date"
+            onChange={(event) => updateState({ dateRangePreset: 'custom', startDate: event.target.value })}
+          />
         </label>
         <label className="date-field">
           <span>结束</span>
-          <input value={state.endDate} type="date" onChange={(event) => updateState({ endDate: event.target.value })} />
+          <input
+            value={state.endDate}
+            type="date"
+            onChange={(event) => updateState({ dateRangePreset: 'custom', endDate: event.target.value })}
+          />
         </label>
         <div className="summary-pill">
           {marketScopeLabel} · 入图 {visibleSymbols.length}/{marketScopedSymbols.length} 只 · 标签 {state.selectedTagIds.length} 个 · 曲线 {series.length} 条
@@ -2188,6 +2243,37 @@ function matchesMarketFilter(symbol: SymbolItem, marketFilter: MarketFilter): bo
   return marketFilter === 'ALL' || symbol.market === marketFilter;
 }
 
+function resolveRelativeDateRange(dateRangePreset: DateRangePreset): { startDate: string; endDate: string } {
+  const today = new Date();
+  const start = new Date(today);
+  if (dateRangePreset === 'ytd') {
+    start.setMonth(0, 1);
+  } else if (dateRangePreset === '1w') {
+    start.setDate(start.getDate() - 7);
+  } else if (dateRangePreset === '2w') {
+    start.setDate(start.getDate() - 14);
+  } else if (dateRangePreset === '1m') {
+    start.setMonth(start.getMonth() - 1);
+  } else if (dateRangePreset === '3m') {
+    start.setMonth(start.getMonth() - 3);
+  } else if (dateRangePreset === '6m') {
+    start.setMonth(start.getMonth() - 6);
+  } else if (dateRangePreset === '1y') {
+    start.setFullYear(start.getFullYear() - 1);
+  }
+  return {
+    startDate: formatLocalDate(start),
+    endDate: formatLocalDate(today),
+  };
+}
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function createViewTabFromState(id: string, name: string, state: AppState): ViewTab {
   return {
     id,
@@ -2197,6 +2283,7 @@ function createViewTabFromState(id: string, name: string, state: AppState): View
     marketFilter: state.marketFilter,
     mode: state.mode,
     interval: state.interval,
+    dateRangePreset: state.dateRangePreset,
     startDate: state.startDate,
     endDate: state.endDate,
   };
@@ -2220,6 +2307,10 @@ function syncActiveViewTab(state: AppState): AppState {
 function applyViewTab(state: AppState, view: ViewTab): AppState {
   const validSymbolIds = new Set(state.symbols.map((symbol) => symbol.id));
   const validTagIds = new Set(state.tags.map((tag) => tag.id));
+  const dateRange =
+    view.dateRangePreset === 'custom'
+      ? { startDate: view.startDate, endDate: view.endDate }
+      : resolveRelativeDateRange(view.dateRangePreset);
   return {
     ...state,
     activeViewId: view.id,
@@ -2228,8 +2319,8 @@ function applyViewTab(state: AppState, view: ViewTab): AppState {
     marketFilter: view.marketFilter,
     mode: view.mode,
     interval: view.interval,
-    startDate: view.startDate,
-    endDate: view.endDate,
+    dateRangePreset: view.dateRangePreset,
+    ...dateRange,
   };
 }
 
@@ -2239,6 +2330,7 @@ function isSameViewTab(a: ViewTab, b: ViewTab): boolean {
     a.marketFilter === b.marketFilter &&
     a.mode === b.mode &&
     a.interval === b.interval &&
+    a.dateRangePreset === b.dateRangePreset &&
     a.startDate === b.startDate &&
     a.endDate === b.endDate &&
     isSameStringArray(a.selectedSymbolIds, b.selectedSymbolIds) &&

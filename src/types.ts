@@ -6,6 +6,8 @@ export type ChartMode = 'symbols' | 'tags' | 'mixed';
 
 export type Interval = '1d' | '1wk' | '1mo';
 
+export type DateRangePreset = 'custom' | '1w' | '2w' | '1m' | '3m' | '6m' | '1y' | 'ytd';
+
 export interface Tag {
   id: string;
   name: string;
@@ -74,6 +76,7 @@ export interface ViewTab {
   marketFilter: MarketFilter;
   mode: ChartMode;
   interval: Interval;
+  dateRangePreset: DateRangePreset;
   startDate: string;
   endDate: string;
 }
@@ -88,6 +91,7 @@ export interface AppState {
   marketFilter: MarketFilter;
   mode: ChartMode;
   interval: Interval;
+  dateRangePreset: DateRangePreset;
   startDate: string;
   endDate: string;
 }

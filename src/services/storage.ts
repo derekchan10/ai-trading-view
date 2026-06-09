@@ -1,5 +1,5 @@
 import { createInitialState } from '../data/seed';
-import type { AppState, ChartMode, Interval, MarketFilter, SymbolItem, ViewTab } from '../types';
+import type { AppState, ChartMode, DateRangePreset, Interval, MarketFilter, SymbolItem, ViewTab } from '../types';
 
 const STORAGE_KEY = 'ai-trading-view.state.v2';
 const WORKSPACE_SESSION_KEY = 'ai-trading-view.workspace-session.v1';
@@ -238,6 +238,8 @@ function normalizeState(value: unknown): AppState {
     ]),
   );
   const marketFilter = normalizeMarketFilter(parsed.marketFilter, fallback.marketFilter);
+  const dateRangePreset = normalizeDateRangePreset(parsed.dateRangePreset, fallback.dateRangePreset);
+  const stateDateRange = resolveDateRange(dateRangePreset, parsed.startDate, parsed.endDate, fallback);
   const baseState = {
     ...fallback,
     ...parsed,
@@ -246,6 +248,9 @@ function normalizeState(value: unknown): AppState {
     selectedSymbolIds,
     selectedTagIds,
     marketFilter,
+    dateRangePreset,
+    startDate: stateDateRange.startDate,
+    endDate: stateDateRange.endDate,
   } as AppState;
   const viewTabs = normalizeViewTabs(parsed.viewTabs, baseState, fallback.viewTabs);
   const activeViewId =
@@ -309,8 +314,13 @@ function normalizeViewTab(
     marketFilter: normalizeMarketFilter(parsed.marketFilter, state.marketFilter),
     mode: normalizeChartMode(parsed.mode, state.mode),
     interval: normalizeInterval(parsed.interval, state.interval),
-    startDate: typeof parsed.startDate === 'string' && parsed.startDate ? parsed.startDate : state.startDate,
-    endDate: typeof parsed.endDate === 'string' && parsed.endDate ? parsed.endDate : state.endDate,
+    dateRangePreset: normalizeDateRangePreset(parsed.dateRangePreset, state.dateRangePreset),
+    ...resolveDateRange(
+      normalizeDateRangePreset(parsed.dateRangePreset, state.dateRangePreset),
+      parsed.startDate,
+      parsed.endDate,
+      state,
+    ),
   };
 }
 
@@ -329,6 +339,7 @@ function createViewTabFromState(
     marketFilter: normalizeMarketFilter(state.marketFilter, 'ALL'),
     mode: normalizeChartMode(state.mode, 'tags'),
     interval: normalizeInterval(state.interval, '1d'),
+    dateRangePreset: normalizeDateRangePreset(state.dateRangePreset, 'custom'),
     startDate: state.startDate,
     endDate: state.endDate,
   };
@@ -345,6 +356,67 @@ function normalizeChartMode(value: unknown, fallback: ChartMode): ChartMode {
 
 function normalizeInterval(value: unknown, fallback: Interval): Interval {
   return value === '1d' || value === '1wk' || value === '1mo' ? value : fallback;
+}
+
+function normalizeDateRangePreset(value: unknown, fallback: DateRangePreset): DateRangePreset {
+  if (
+    value === 'custom' ||
+    value === '1w' ||
+    value === '2w' ||
+    value === '1m' ||
+    value === '3m' ||
+    value === '6m' ||
+    value === '1y' ||
+    value === 'ytd'
+  ) {
+    return value;
+  }
+  return fallback;
+}
+
+function resolveDateRange(
+  preset: DateRangePreset,
+  startDate: unknown,
+  endDate: unknown,
+  fallback: Pick<AppState, 'startDate' | 'endDate'>,
+): { startDate: string; endDate: string } {
+  if (preset === 'custom') {
+    return {
+      startDate: typeof startDate === 'string' && startDate ? startDate : fallback.startDate,
+      endDate: typeof endDate === 'string' && endDate ? endDate : fallback.endDate,
+    };
+  }
+
+  const today = new Date();
+  const end = formatLocalDate(today);
+  const start = new Date(today);
+  if (preset === 'ytd') {
+    start.setMonth(0, 1);
+  } else if (preset === '1w') {
+    start.setDate(start.getDate() - 7);
+  } else if (preset === '2w') {
+    start.setDate(start.getDate() - 14);
+  } else if (preset === '1m') {
+    start.setMonth(start.getMonth() - 1);
+  } else if (preset === '3m') {
+    start.setMonth(start.getMonth() - 3);
+  } else if (preset === '6m') {
+    start.setMonth(start.getMonth() - 6);
+  } else if (preset === '1y') {
+    start.setFullYear(start.getFullYear() - 1);
+  }
+
+  return {
+    startDate: formatLocalDate(start),
+    endDate: end,
+  };
+}
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function normalizeMarketFilter(value: unknown, fallback: MarketFilter): MarketFilter {

@@ -167,6 +167,7 @@ function createSeedView(
     marketFilter: 'ALL',
     mode: 'tags',
     interval: '1d',
+    dateRangePreset: 'custom',
     startDate: '2025-01-01',
     endDate: today,
   };
@@ -190,6 +191,7 @@ export function createInitialState(): AppState {
     marketFilter: 'ALL',
     mode: 'tags',
     interval: '1d',
+    dateRangePreset: 'custom',
     startDate: '2025-01-01',
     endDate: today,
   };
