@@ -1087,9 +1087,9 @@ button {
 .table-header,
 .table-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.4fr) 150px repeat(4, minmax(110px, 1fr)) 120px;
+  grid-template-columns: minmax(180px, 1.45fr) 150px repeat(3, minmax(110px, 1fr)) 120px;
   align-items: center;
-  min-width: 1080px;
+  min-width: 940px;
 }
 
 .table-header {

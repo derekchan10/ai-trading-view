@@ -1364,7 +1364,6 @@ export default function App() {
           <span>公司 / 标签</span>
           <span>市场</span>
           <span>区间涨幅</span>
-          <span>年度涨幅</span>
           <span>最大回撤</span>
           <span>阶段</span>
           <span>最后日期</span>
@@ -1378,7 +1377,6 @@ export default function App() {
             </span>
             <span>{item.market === 'TAG' ? '标签' : `${marketLabel(item.market)} ${item.code}`}</span>
             <Metric value={item.metrics.rangeReturn} />
-            <Metric value={item.metrics.ytdReturn} />
             <Metric value={item.metrics.maxDrawdown} />
             <span>{item.metrics.stage}</span>
             <span>{item.metrics.lastDate ?? '-'}</span>
@@ -2174,9 +2172,8 @@ function drawExportTable(
     { label: '公司 / 标签', ratio: 0.24 },
     { label: '市场', ratio: 0.14 },
     { label: '区间涨幅', ratio: 0.15 },
-    { label: '年度涨幅', ratio: 0.15 },
     { label: '最大回撤', ratio: 0.14 },
-    { label: '阶段', ratio: 0.1 },
+    { label: '阶段', ratio: 0.12 },
     { label: '最后日期', ratio: 0.12 },
   ];
   const totalRatio = columns.reduce((sum, item) => sum + item.ratio, 0);
@@ -2227,12 +2224,11 @@ function drawExportTable(
     context.fillStyle = '#172033';
     drawClippedText(context, formatExportMarket(row), columnXs[1], centerY, columnWidths[1] - 8 * scale);
     drawMetricCell(context, row.metrics.rangeReturn, columnXs[2], centerY, columnWidths[2] - 8 * scale);
-    drawMetricCell(context, row.metrics.ytdReturn, columnXs[3], centerY, columnWidths[3] - 8 * scale);
-    drawMetricCell(context, row.metrics.maxDrawdown, columnXs[4], centerY, columnWidths[4] - 8 * scale);
+    drawMetricCell(context, row.metrics.maxDrawdown, columnXs[3], centerY, columnWidths[3] - 8 * scale);
 
     context.fillStyle = '#172033';
-    drawClippedText(context, row.metrics.stage, columnXs[5], centerY, columnWidths[5] - 8 * scale);
-    drawClippedText(context, row.metrics.lastDate ?? '-', columnXs[6], centerY, columnWidths[6] - 8 * scale);
+    drawClippedText(context, row.metrics.stage, columnXs[4], centerY, columnWidths[4] - 8 * scale);
+    drawClippedText(context, row.metrics.lastDate ?? '-', columnXs[5], centerY, columnWidths[5] - 8 * scale);
   });
 }
 
