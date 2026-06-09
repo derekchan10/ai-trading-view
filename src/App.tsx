@@ -2,6 +2,8 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
+  ChevronDown,
+  ChevronUp,
   CirclePlus,
   Copy,
   DatabaseZap,
@@ -127,6 +129,7 @@ export default function App() {
   const [tagForm, setTagForm] = useState(createEmptyTagForm);
   const [batchForm, setBatchForm] = useState(emptyBatchForm);
   const [batchFilter, setBatchFilter] = useState(emptyBatchFilter);
+  const [batchImportOpen, setBatchImportOpen] = useState(false);
   const [bulkSymbolIds, setBulkSymbolIds] = useState<string[]>([]);
   const [bulkTagIds, setBulkTagIds] = useState<string[]>([]);
   const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
@@ -660,6 +663,7 @@ export default function App() {
         selectedSymbolIds: Array.from(selectedSymbolIds),
       };
     });
+    setBatchImportOpen(false);
   }
 
   function applyBulkTags(mode: 'add' | 'remove' | 'replace') {
@@ -1100,7 +1104,7 @@ export default function App() {
                   {activePanel === 'symbol'
                     ? '添加代码、名称、市场和标签'
                     : activePanel === 'batch'
-                      ? '批量导入、编辑、打标签和删除'
+                      ? '筛选、编辑、打标签和删除，批量导入可展开使用'
                       : activePanel === 'tags'
                         ? '按类型维护标签、颜色和删除项'
                         : '创建工作区、输入代码加入或分享协作代码'}
@@ -1291,34 +1295,48 @@ export default function App() {
 
             {activePanel === 'batch' && (
               <div className="batch-management">
-                <form className="batch-import" onSubmit={submitBatchImport}>
-                  <div className="batch-import-head">
-                    <label>
-                      <span>默认市场</span>
-                      <select
-                        value={batchForm.market}
-                        onChange={(event) =>
-                          setBatchForm((current) => ({ ...current, market: event.target.value as Market }))
-                        }
-                      >
-                        {markets.map((market) => (
-                          <option key={market.value} value={market.value}>
-                            {market.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button className="primary-button" type="submit">
-                      <ListChecks size={16} />
-                      批量导入/更新
+                <section className={`batch-import-panel ${batchImportOpen ? 'open' : ''}`}>
+                  <div className="batch-import-summary">
+                    <div>
+                      <strong>批量导入</strong>
+                      <span>低频工具，展开后按行粘贴股票</span>
+                    </div>
+                    <button type="button" onClick={() => setBatchImportOpen((open) => !open)}>
+                      {batchImportOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                      {batchImportOpen ? '收起' : '展开'}
                     </button>
                   </div>
-                  <textarea
-                    value={batchForm.text}
-                    placeholder={'每行一只：市场 代码 名称 标签1,标签2\n例如：美股 NVDA 英伟达 算力芯片,上游\n也可省略市场：AMD 超威半导体 算力芯片'}
-                    onChange={(event) => setBatchForm((current) => ({ ...current, text: event.target.value }))}
-                  />
-                </form>
+                  {batchImportOpen && (
+                    <form className="batch-import" onSubmit={submitBatchImport}>
+                      <div className="batch-import-head">
+                        <label>
+                          <span>默认市场</span>
+                          <select
+                            value={batchForm.market}
+                            onChange={(event) =>
+                              setBatchForm((current) => ({ ...current, market: event.target.value as Market }))
+                            }
+                          >
+                            {markets.map((market) => (
+                              <option key={market.value} value={market.value}>
+                                {market.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button className="primary-button" type="submit">
+                          <ListChecks size={16} />
+                          导入/更新
+                        </button>
+                      </div>
+                      <textarea
+                        value={batchForm.text}
+                        placeholder={'每行一只：市场 代码 名称 标签1,标签2\n例如：美股 NVDA 英伟达 算力芯片,上游\n也可省略市场：AMD 超威半导体 算力芯片'}
+                        onChange={(event) => setBatchForm((current) => ({ ...current, text: event.target.value }))}
+                      />
+                    </form>
+                  )}
+                </section>
 
                 <div className="stock-manager-grid">
                   <section className="batch-section stock-batch-section">
