@@ -1183,7 +1183,7 @@ button {
 
 .workspace-code-row {
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr) 34px;
+  grid-template-columns: 88px minmax(0, 1fr) 76px;
   gap: 8px;
   align-items: center;
   padding: 8px;
@@ -1215,6 +1215,33 @@ button {
   background: #ffffff;
   color: #172033;
   font-weight: 800;
+}
+
+.workspace-code-row button {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.workspace-code-row button em {
+  font-style: normal;
+  font-size: 12px;
+}
+
+.workspace-code-row button.copied {
+  border-color: #22c55e;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.workspace-code-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .workspace-code-actions {

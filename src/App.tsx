@@ -1,6 +1,7 @@
 import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Check,
   CirclePlus,
   Copy,
   DatabaseZap,
@@ -132,6 +133,7 @@ export default function App() {
   const [workspaceSession, setWorkspaceSession] = useState<WorkspaceSession | null>(() => loadWorkspaceSession());
   const [workspaceForm, setWorkspaceForm] = useState(emptyWorkspaceForm);
   const [workspaceMessage, setWorkspaceMessage] = useState('');
+  const [copiedWorkspaceCode, setCopiedWorkspaceCode] = useState('');
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => (loadWorkspaceSession() ? 'loading' : 'local'));
   const [symbolError, setSymbolError] = useState('');
   const [batchMessage, setBatchMessage] = useState('');
@@ -139,6 +141,7 @@ export default function App() {
   const remoteReadyRef = useRef(false);
   const stateRef = useRef(state);
   const workspaceSessionRef = useRef(workspaceSession);
+  const copiedCodeTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     stateRef.current = state;
@@ -148,6 +151,14 @@ export default function App() {
   useEffect(() => {
     workspaceSessionRef.current = workspaceSession;
   }, [workspaceSession]);
+
+  useEffect(() => {
+    return () => {
+      if (copiedCodeTimerRef.current !== null) {
+        window.clearTimeout(copiedCodeTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -820,15 +831,28 @@ export default function App() {
     }
   }
 
-  function copyCode(code?: string) {
+  async function copyCode(code?: string) {
     if (!code) {
       setWorkspaceMessage('当前没有可复制的代码。');
       return;
     }
-    void navigator.clipboard
-      .writeText(code)
-      .then(() => setWorkspaceMessage('代码已复制。'))
-      .catch(() => setWorkspaceMessage(code));
+    try {
+      const copied = await copyTextToClipboard(code);
+      if (!copied) {
+        throw new Error('copy failed');
+      }
+      setCopiedWorkspaceCode(code);
+      setWorkspaceMessage(`已复制：${code}`);
+      if (copiedCodeTimerRef.current !== null) {
+        window.clearTimeout(copiedCodeTimerRef.current);
+      }
+      copiedCodeTimerRef.current = window.setTimeout(() => {
+        setCopiedWorkspaceCode((current) => (current === code ? '' : current));
+      }, 1600);
+    } catch {
+      setCopiedWorkspaceCode('');
+      setWorkspaceMessage(`复制失败，请手动复制：${code}`);
+    }
   }
 
   function exportChartSnapshot(chartPayload: ChartExportPayload) {
@@ -1101,11 +1125,26 @@ export default function App() {
                   </p>
                   {workspaceSession && (
                     <div className="workspace-code-list">
-                      <WorkspaceCodeRow label="当前代码" code={workspaceSession.code} onCopy={copyCode} />
+                      <WorkspaceCodeRow
+                        label="当前代码"
+                        code={workspaceSession.code}
+                        copied={copiedWorkspaceCode === workspaceSession.code}
+                        onCopy={copyCode}
+                      />
                       {workspaceSession.role === 'editor' && (
                         <>
-                          <WorkspaceCodeRow label="编辑代码" code={workspaceSession.editCode} onCopy={copyCode} />
-                          <WorkspaceCodeRow label="只读代码" code={workspaceSession.viewCode} onCopy={copyCode} />
+                          <WorkspaceCodeRow
+                            label="编辑代码"
+                            code={workspaceSession.editCode}
+                            copied={copiedWorkspaceCode === workspaceSession.editCode}
+                            onCopy={copyCode}
+                          />
+                          <WorkspaceCodeRow
+                            label="只读代码"
+                            code={workspaceSession.viewCode}
+                            copied={copiedWorkspaceCode === workspaceSession.viewCode}
+                            onCopy={copyCode}
+                          />
                           <div className="workspace-code-actions">
                             <button type="button" onClick={() => void rotateCode('viewer')}>
                               重置只读代码
@@ -1563,21 +1602,56 @@ function Metric({ value }: { value: number | null }) {
 function WorkspaceCodeRow({
   label,
   code,
+  copied,
   onCopy,
 }: {
   label: string;
   code?: string;
+  copied: boolean;
   onCopy: (code?: string) => void;
 }) {
   return (
     <div className="workspace-code-row">
       <span>{label}</span>
       <strong>{code ?? '未生成'}</strong>
-      <button type="button" onClick={() => onCopy(code)} title="复制代码">
-        <Copy size={14} />
+      <button
+        className={copied ? 'copied' : ''}
+        type="button"
+        disabled={!code}
+        onClick={() => onCopy(code)}
+        title={copied ? '已复制' : '复制代码'}
+      >
+        {copied ? <Check size={14} /> : <Copy size={14} />}
+        <em>{copied ? '已复制' : '复制'}</em>
       </button>
     </div>
   );
+}
+
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall back to the legacy path below.
+    }
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+  try {
+    return document.execCommand('copy');
+  } finally {
+    document.body.removeChild(textarea);
+  }
 }
 
 async function exportChartWithTable(
