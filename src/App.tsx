@@ -36,7 +36,7 @@ import {
   saveState,
 } from './services/storage';
 import type { WorkspaceRole, WorkspaceSession } from './services/storage';
-import type { AppState, ChartMode, Interval, Market, MarketFilter, PerformanceSeries, SymbolItem, Tag } from './types';
+import type { AppState, ChartMode, Interval, Market, MarketFilter, PerformanceSeries, SymbolItem, Tag, ViewTab } from './types';
 import './styles.css';
 
 type CssVars = CSSProperties & Record<`--${string}`, string>;
@@ -236,6 +236,19 @@ export default function App() {
     }
   }, [activePanel]);
 
+  useEffect(() => {
+    setState((current) => syncActiveViewTab(current));
+  }, [
+    state.activeViewId,
+    state.endDate,
+    state.interval,
+    state.marketFilter,
+    state.mode,
+    state.selectedSymbolIds,
+    state.selectedTagIds,
+    state.startDate,
+  ]);
+
   const tagMap = useMemo(() => new Map(state.tags.map((tag) => [tag.id, tag])), [state.tags]);
 
   const marketScopedSymbols = useMemo(() => {
@@ -397,9 +410,73 @@ export default function App() {
 
   const canEditWorkspace = !workspaceSession || workspaceSession.role === 'editor';
   const workspaceRoleLabel = workspaceSession?.role === 'viewer' ? '只读' : '编辑';
+  const activeViewTab = state.viewTabs.find((view) => view.id === state.activeViewId) ?? state.viewTabs[0] ?? null;
 
   function updateState(patch: Partial<AppState>) {
     setState((current) => ({ ...current, ...patch }));
+  }
+
+  function selectViewTab(viewId: string) {
+    setState((current) => {
+      const view = current.viewTabs.find((item) => item.id === viewId);
+      return view ? applyViewTab(current, view) : current;
+    });
+  }
+
+  function createViewTab() {
+    const name = window.prompt('请输入视图名称', nextViewName(state.viewTabs));
+    const cleanName = name?.trim();
+    if (!cleanName) {
+      return;
+    }
+    setState((current) => {
+      const view = createViewTabFromState(`view-${Date.now()}`, cleanName, current);
+      return {
+        ...current,
+        activeViewId: view.id,
+        viewTabs: [...current.viewTabs, view],
+      };
+    });
+  }
+
+  function renameActiveView() {
+    if (!activeViewTab) {
+      return;
+    }
+    const name = window.prompt('请输入新的视图名称', activeViewTab.name);
+    const cleanName = name?.trim();
+    if (!cleanName) {
+      return;
+    }
+    setState((current) => ({
+      ...current,
+      viewTabs: current.viewTabs.map((view) =>
+        view.id === current.activeViewId ? { ...view, name: cleanName } : view,
+      ),
+    }));
+  }
+
+  function deleteActiveView() {
+    if (!activeViewTab || state.viewTabs.length <= 1) {
+      return;
+    }
+    if (!window.confirm(`删除视图「${activeViewTab.name}」？`)) {
+      return;
+    }
+    setState((current) => {
+      const remaining = current.viewTabs.filter((view) => view.id !== current.activeViewId);
+      const nextView = remaining[0];
+      if (!nextView) {
+        return current;
+      }
+      return applyViewTab(
+        {
+          ...current,
+          viewTabs: remaining,
+        },
+        nextView,
+      );
+    });
   }
 
   function toggleSymbol(symbolId: string) {
@@ -967,6 +1044,36 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      <section className="view-tab-strip">
+        <span>视图</span>
+        <div className="view-tab-list">
+          {state.viewTabs.map((view) => (
+            <button
+              key={view.id}
+              className={view.id === state.activeViewId ? 'active' : ''}
+              type="button"
+              onClick={() => selectViewTab(view.id)}
+            >
+              {view.name}
+            </button>
+          ))}
+        </div>
+        <div className="view-tab-actions">
+          <button type="button" onClick={createViewTab}>
+            <CirclePlus size={14} />
+            新增
+          </button>
+          <button type="button" disabled={!activeViewTab} onClick={renameActiveView}>
+            <Pencil size={14} />
+            重命名
+          </button>
+          <button type="button" disabled={state.viewTabs.length <= 1} onClick={deleteActiveView}>
+            <Trash2 size={14} />
+            删除
+          </button>
+        </div>
+      </section>
 
       <section className="control-strip">
         <Segmented
@@ -2079,4 +2186,80 @@ function marketLabel(market: Market): string {
 
 function matchesMarketFilter(symbol: SymbolItem, marketFilter: MarketFilter): boolean {
   return marketFilter === 'ALL' || symbol.market === marketFilter;
+}
+
+function createViewTabFromState(id: string, name: string, state: AppState): ViewTab {
+  return {
+    id,
+    name,
+    selectedSymbolIds: state.selectedSymbolIds,
+    selectedTagIds: state.selectedTagIds,
+    marketFilter: state.marketFilter,
+    mode: state.mode,
+    interval: state.interval,
+    startDate: state.startDate,
+    endDate: state.endDate,
+  };
+}
+
+function syncActiveViewTab(state: AppState): AppState {
+  const activeView = state.viewTabs.find((view) => view.id === state.activeViewId);
+  if (!activeView) {
+    return state;
+  }
+  const nextView = createViewTabFromState(activeView.id, activeView.name, state);
+  if (isSameViewTab(activeView, nextView)) {
+    return state;
+  }
+  return {
+    ...state,
+    viewTabs: state.viewTabs.map((view) => (view.id === state.activeViewId ? nextView : view)),
+  };
+}
+
+function applyViewTab(state: AppState, view: ViewTab): AppState {
+  const validSymbolIds = new Set(state.symbols.map((symbol) => symbol.id));
+  const validTagIds = new Set(state.tags.map((tag) => tag.id));
+  return {
+    ...state,
+    activeViewId: view.id,
+    selectedSymbolIds: view.selectedSymbolIds.filter((id) => validSymbolIds.has(id)),
+    selectedTagIds: view.selectedTagIds.filter((id) => validTagIds.has(id)),
+    marketFilter: view.marketFilter,
+    mode: view.mode,
+    interval: view.interval,
+    startDate: view.startDate,
+    endDate: view.endDate,
+  };
+}
+
+function isSameViewTab(a: ViewTab, b: ViewTab): boolean {
+  return (
+    a.name === b.name &&
+    a.marketFilter === b.marketFilter &&
+    a.mode === b.mode &&
+    a.interval === b.interval &&
+    a.startDate === b.startDate &&
+    a.endDate === b.endDate &&
+    isSameStringArray(a.selectedSymbolIds, b.selectedSymbolIds) &&
+    isSameStringArray(a.selectedTagIds, b.selectedTagIds)
+  );
+}
+
+function isSameStringArray(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  return a.every((item, index) => item === b[index]);
+}
+
+function nextViewName(views: ViewTab[]): string {
+  let index = views.length + 1;
+  let name = `视图 ${index}`;
+  const names = new Set(views.map((view) => view.name));
+  while (names.has(name)) {
+    index += 1;
+    name = `视图 ${index}`;
+  }
+  return name;
 }

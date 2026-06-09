@@ -66,11 +66,25 @@ export interface PerformanceSeries {
   metrics: SeriesMetrics;
 }
 
+export interface ViewTab {
+  id: string;
+  name: string;
+  selectedSymbolIds: string[];
+  selectedTagIds: string[];
+  marketFilter: MarketFilter;
+  mode: ChartMode;
+  interval: Interval;
+  startDate: string;
+  endDate: string;
+}
+
 export interface AppState {
   tags: Tag[];
   symbols: SymbolItem[];
   selectedSymbolIds: string[];
   selectedTagIds: string[];
+  viewTabs: ViewTab[];
+  activeViewId: string;
   marketFilter: MarketFilter;
   mode: ChartMode;
   interval: Interval;

@@ -1,5 +1,5 @@
 import { createInitialState } from '../data/seed';
-import type { AppState, MarketFilter, SymbolItem } from '../types';
+import type { AppState, ChartMode, Interval, MarketFilter, SymbolItem, ViewTab } from '../types';
 
 const STORAGE_KEY = 'ai-trading-view.state.v2';
 const WORKSPACE_SESSION_KEY = 'ai-trading-view.workspace-session.v1';
@@ -238,7 +238,7 @@ function normalizeState(value: unknown): AppState {
     ]),
   );
   const marketFilter = normalizeMarketFilter(parsed.marketFilter, fallback.marketFilter);
-  return {
+  const baseState = {
     ...fallback,
     ...parsed,
     tags,
@@ -246,7 +246,105 @@ function normalizeState(value: unknown): AppState {
     selectedSymbolIds,
     selectedTagIds,
     marketFilter,
+  } as AppState;
+  const viewTabs = normalizeViewTabs(parsed.viewTabs, baseState, fallback.viewTabs);
+  const activeViewId =
+    typeof parsed.activeViewId === 'string' && viewTabs.some((view) => view.id === parsed.activeViewId)
+      ? parsed.activeViewId
+      : viewTabs[0]?.id || 'view-current';
+  return {
+    ...baseState,
+    viewTabs,
+    activeViewId,
   };
+}
+
+function normalizeViewTabs(value: unknown, state: AppState, fallback: ViewTab[]): ViewTab[] {
+  const symbolIds = new Set(state.symbols.map((symbol) => symbol.id));
+  const tagIds = new Set(state.tags.map((tag) => tag.id));
+  const source = Array.isArray(value) && value.length ? value : null;
+  if (!source) {
+    return [
+      createViewTabFromState(
+        typeof state.activeViewId === 'string' ? state.activeViewId : 'view-current',
+        '当前视图',
+        state,
+        symbolIds,
+        tagIds,
+      ),
+    ];
+  }
+
+  const normalized = source
+    .map((item, index) => normalizeViewTab(item, index, state, symbolIds, tagIds))
+    .filter((item): item is ViewTab => Boolean(item));
+
+  if (normalized.length) {
+    return normalized;
+  }
+
+  return fallback.length
+    ? fallback.map((view) => normalizeViewTab(view, 0, state, symbolIds, tagIds)).filter((item): item is ViewTab => Boolean(item))
+    : [createViewTabFromState('view-current', '当前视图', state, symbolIds, tagIds)];
+}
+
+function normalizeViewTab(
+  value: unknown,
+  index: number,
+  state: AppState,
+  symbolIds: Set<string>,
+  tagIds: Set<string>,
+): ViewTab | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const parsed = value as Partial<ViewTab>;
+  const id = typeof parsed.id === 'string' && parsed.id.trim() ? parsed.id : `view-${index + 1}`;
+  const name = typeof parsed.name === 'string' && parsed.name.trim() ? parsed.name.trim() : `视图 ${index + 1}`;
+  return {
+    id,
+    name,
+    selectedSymbolIds: normalizeIds(parsed.selectedSymbolIds, symbolIds, state.selectedSymbolIds),
+    selectedTagIds: normalizeIds(parsed.selectedTagIds, tagIds, state.selectedTagIds),
+    marketFilter: normalizeMarketFilter(parsed.marketFilter, state.marketFilter),
+    mode: normalizeChartMode(parsed.mode, state.mode),
+    interval: normalizeInterval(parsed.interval, state.interval),
+    startDate: typeof parsed.startDate === 'string' && parsed.startDate ? parsed.startDate : state.startDate,
+    endDate: typeof parsed.endDate === 'string' && parsed.endDate ? parsed.endDate : state.endDate,
+  };
+}
+
+function createViewTabFromState(
+  id: string,
+  name: string,
+  state: AppState,
+  symbolIds: Set<string>,
+  tagIds: Set<string>,
+): ViewTab {
+  return {
+    id,
+    name,
+    selectedSymbolIds: normalizeIds(state.selectedSymbolIds, symbolIds, []),
+    selectedTagIds: normalizeIds(state.selectedTagIds, tagIds, []),
+    marketFilter: normalizeMarketFilter(state.marketFilter, 'ALL'),
+    mode: normalizeChartMode(state.mode, 'tags'),
+    interval: normalizeInterval(state.interval, '1d'),
+    startDate: state.startDate,
+    endDate: state.endDate,
+  };
+}
+
+function normalizeIds(value: unknown, validIds: Set<string>, fallback: string[]): string[] {
+  const source = Array.isArray(value) ? value : fallback;
+  return Array.from(new Set(source.filter((id): id is string => typeof id === 'string' && validIds.has(id))));
+}
+
+function normalizeChartMode(value: unknown, fallback: ChartMode): ChartMode {
+  return value === 'symbols' || value === 'tags' || value === 'mixed' ? value : fallback;
+}
+
+function normalizeInterval(value: unknown, fallback: Interval): Interval {
+  return value === '1d' || value === '1wk' || value === '1mo' ? value : fallback;
 }
 
 function normalizeMarketFilter(value: unknown, fallback: MarketFilter): MarketFilter {

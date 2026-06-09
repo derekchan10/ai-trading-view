@@ -1,4 +1,4 @@
-import type { AppState, SymbolItem, Tag } from '../types';
+import type { AppState, SymbolItem, Tag, ViewTab } from '../types';
 
 const positionTagIds = [
   'compute_chip',
@@ -148,13 +148,45 @@ export const seedSymbols: SymbolItem[] = [
   stock('TER', 'Teradyne', [S.downstream, P.edgeAiRobotics]),
 ];
 
+function symbolIdsWithTag(tagId: string): string[] {
+  return seedSymbols.filter((symbol) => symbol.tagIds.includes(tagId)).map((symbol) => symbol.id);
+}
+
+function createSeedView(
+  id: string,
+  name: string,
+  selectedSymbolIds: string[],
+  selectedTagIds: string[],
+  today: string,
+): ViewTab {
+  return {
+    id,
+    name,
+    selectedSymbolIds,
+    selectedTagIds,
+    marketFilter: 'ALL',
+    mode: 'tags',
+    interval: '1d',
+    startDate: '2025-01-01',
+    endDate: today,
+  };
+}
+
 export function createInitialState(): AppState {
   const today = new Date().toISOString().slice(0, 10);
+  const viewTabs = [
+    createSeedView('view-overview', '总览', seedSymbols.map((symbol) => symbol.id), positionTagIds, today),
+    createSeedView('view-upstream', '上游', symbolIdsWithTag(S.upstream), [S.upstream], today),
+    createSeedView('view-midstream', '中游', symbolIdsWithTag(S.midstream), [S.midstream], today),
+    createSeedView('view-downstream', '下游', symbolIdsWithTag(S.downstream), [S.downstream], today),
+  ];
   return {
     tags: seedTags,
     symbols: seedSymbols.map((symbol) => ({ ...symbol })),
     selectedSymbolIds: seedSymbols.map((symbol) => symbol.id),
     selectedTagIds: positionTagIds,
+    viewTabs,
+    activeViewId: viewTabs[0].id,
     marketFilter: 'ALL',
     mode: 'tags',
     interval: '1d',
