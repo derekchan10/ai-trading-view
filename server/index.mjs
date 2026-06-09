@@ -20,6 +20,7 @@ const cacheTtlMs = Number(process.env.MARKET_CACHE_TTL_MS ?? 1000 * 60 * 60 * 12
 const requestConcurrency = Number(process.env.MARKET_REQUEST_CONCURRENCY ?? 5);
 const requestGapMs = Number(process.env.MARKET_REQUEST_GAP_MS ?? 150);
 const requestTimeoutMs = Number(process.env.MARKET_REQUEST_TIMEOUT_MS ?? 18000);
+const batchDeadlineMs = Number(process.env.MARKET_BATCH_DEADLINE_MS ?? 8500);
 const allowedMarkets = new Set(['CN_A', 'US', 'HK', 'KR_KOSPI', 'KR_KOSDAQ', 'CUSTOM']);
 const allowedIntervals = new Set(['1d', '1wk', '1mo']);
 const priceCache = new Map();
@@ -174,9 +175,10 @@ async function handleBatchPrices(request, response) {
   const { startDate, endDate, period1, period2 } = parseDateRange(body.startDate, body.endDate);
   const refresh = Boolean(body.refresh);
   const symbols = validateSymbols(body.symbols);
+  const deadlineAt = Date.now() + batchDeadlineMs;
 
   const loaded = await mapWithConcurrency(symbols, requestConcurrency, async (symbol) => {
-    return fetchYahooSeries(symbol, interval, startDate, endDate, period1, period2, refresh);
+    return fetchYahooSeries(symbol, interval, startDate, endDate, period1, period2, refresh, deadlineAt);
   });
 
   const items = [];
@@ -238,7 +240,7 @@ function validateAppState(state) {
   return state;
 }
 
-async function fetchYahooSeries(symbol, interval, startDate, endDate, period1, period2, refresh) {
+async function fetchYahooSeries(symbol, interval, startDate, endDate, period1, period2, refresh, deadlineAt = Infinity) {
   const providerSymbol = toYahooSymbol(symbol.market, symbol.code);
   const cacheKey = `${providerSymbol}|${interval}|${startDate}|${endDate}`;
   const cached = priceCache.get(cacheKey);
@@ -262,7 +264,7 @@ async function fetchYahooSeries(symbol, interval, startDate, endDate, period1, p
     includeAdjustedClose: 'true',
   });
 
-  const payload = await fetchYahooJson(providerSymbol, params);
+  const payload = await fetchYahooJson(providerSymbol, params, deadlineAt);
   const chartError = payload?.chart?.error;
   if (chartError) {
     throw new Error(chartError.description ?? '暂无行情');
@@ -294,17 +296,21 @@ async function fetchYahooSeries(symbol, interval, startDate, endDate, period1, p
   };
 }
 
-async function fetchYahooJson(providerSymbol, params) {
+async function fetchYahooJson(providerSymbol, params, deadlineAt = Infinity) {
   const errors = [];
   for (const base of yahooBases) {
     const url = `${base}/v8/finance/chart/${encodeURIComponent(providerSymbol)}?${params}`;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const response = await requestYahooUrl(url, requestTimeoutMs);
+        const remainingMs = getRemainingMs(deadlineAt);
+        if (remainingMs < 1200) {
+          throw new Error('本批次接近超时，稍后会继续请求');
+        }
+        const response = await requestYahooUrl(url, Math.min(requestTimeoutMs, Math.max(1000, remainingMs - 700)));
         if (response.statusCode < 200 || response.statusCode >= 300) {
           errors.push(`${new URL(base).hostname}:${response.statusCode}`);
           if (response.statusCode === 429) {
-            await sleep(2500 + attempt * 4500);
+            await sleepWithinDeadline(2500 + attempt * 4500, deadlineAt);
             continue;
           }
           break;
@@ -312,7 +318,7 @@ async function fetchYahooJson(providerSymbol, params) {
         return JSON.parse(response.body);
       } catch (error) {
         errors.push(`${new URL(base).hostname}:${error instanceof Error ? error.message : '请求失败'}`);
-        await sleep(700 + attempt * 1200);
+        await sleepWithinDeadline(700 + attempt * 1200, deadlineAt);
       }
     }
   }
@@ -610,6 +616,21 @@ function sendNoContent(response) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getRemainingMs(deadlineAt) {
+  if (!Number.isFinite(deadlineAt)) {
+    return requestTimeoutMs;
+  }
+  return Math.max(0, deadlineAt - Date.now());
+}
+
+async function sleepWithinDeadline(ms, deadlineAt) {
+  const remainingMs = getRemainingMs(deadlineAt);
+  const safeDelay = Math.min(ms, Math.max(0, remainingMs - 400));
+  if (safeDelay > 0) {
+    await sleep(safeDelay);
+  }
 }
 
 class HttpError extends Error {

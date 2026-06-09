@@ -13,6 +13,7 @@ const cache = new Map<string, PricePoint[]>();
 const CACHE_PREFIX = 'ai-trading-view.price-cache.v1.';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const API_TIMEOUT_MS = 240000;
+const PRICE_BATCH_CHUNK_SIZE = 6;
 let persistentCacheCleared = false;
 
 interface PriceBatchApiItem {
@@ -112,45 +113,55 @@ async function fetchBatchPriceSeries(
     return { pricesById, warningById };
   }
 
-  try {
-    const payload = await requestBatchPriceSeries(
-      pending.map((item) => item.symbol),
-      interval,
-      startDate,
-      endDate,
-      refresh,
-    );
-    const pendingById = new Map(pending.map((item) => [item.symbol.id, item]));
+  const pendingById = new Map(pending.map((item) => [item.symbol.id, item]));
+  const pendingChunks = chunkItems(pending, PRICE_BATCH_CHUNK_SIZE);
+  for (const chunk of pendingChunks) {
+    try {
+      const payload = await requestBatchPriceSeries(
+        chunk.map((item) => item.symbol),
+        interval,
+        startDate,
+        endDate,
+        refresh,
+      );
+      payload.items?.forEach((item) => {
+        const pendingItem = pendingById.get(item.id);
+        if (!pendingItem || !Array.isArray(item.prices)) {
+          return;
+        }
+        pricesById.set(item.id, item.prices);
+        cache.set(pendingItem.cacheKey, item.prices);
+        writeStoredPriceCache(pendingItem.cacheKey, item.prices);
+      });
 
-    payload.items?.forEach((item) => {
-      const pendingItem = pendingById.get(item.id);
-      if (!pendingItem || !Array.isArray(item.prices)) {
-        return;
-      }
-      pricesById.set(item.id, item.prices);
-      cache.set(pendingItem.cacheKey, item.prices);
-      writeStoredPriceCache(pendingItem.cacheKey, item.prices);
-    });
-
-    payload.warnings?.forEach((warning) => {
-      if (warning.id) {
-        warningById.set(warning.id, warning.message || '行情请求失败');
-      }
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '行情请求失败';
-    pending.forEach((item) => {
-      const stored = readStoredPriceCache(item.cacheKey);
-      if (stored) {
-        cache.set(item.cacheKey, stored);
-        pricesById.set(item.symbol.id, stored);
-        return;
-      }
-      warningById.set(item.symbol.id, message);
-    });
+      payload.warnings?.forEach((warning) => {
+        if (warning.id) {
+          warningById.set(warning.id, warning.message || '行情请求失败');
+        }
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '行情请求失败';
+      chunk.forEach((item) => {
+        const stored = readStoredPriceCache(item.cacheKey);
+        if (stored) {
+          cache.set(item.cacheKey, stored);
+          pricesById.set(item.symbol.id, stored);
+          return;
+        }
+        warningById.set(item.symbol.id, message);
+      });
+    }
   }
 
   return { pricesById, warningById };
+}
+
+function chunkItems<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
 }
 
 function readStoredPriceCache(cacheKey: string): PricePoint[] | null {
