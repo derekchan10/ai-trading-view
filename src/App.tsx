@@ -414,8 +414,6 @@ export default function App() {
     return `${startYear}年-${endYear}年 涨幅节奏`;
   }, [state.endDate, state.startDate]);
 
-  const marketScopeLabel = state.marketFilter === 'ALL' ? '全部市场' : marketLabel(state.marketFilter);
-
   const syncLabel = useMemo(() => {
     if (syncStatus === 'loading') {
       return '读取共享数据';
@@ -1029,8 +1027,7 @@ export default function App() {
         <div className="brand">
           <DatabaseZap size={26} />
           <div className="brand-copy">
-            <h1>AI 产业链涨幅节奏看板</h1>
-            <p>Node后端 · 共享股票池 · 标签联动</p>
+            <h1>产业链趋势看板</h1>
           </div>
         </div>
         <div className="top-actions">
@@ -1182,7 +1179,7 @@ export default function App() {
           />
         </label>
         <div className="summary-pill">
-          {marketScopeLabel} · 入图 {visibleSymbols.length}/{marketScopedSymbols.length} 只 · 标签 {state.selectedTagIds.length} 个 · 曲线 {series.length} 条
+          入图 {visibleSymbols.length}/{marketScopedSymbols.length} · 标签 {state.selectedTagIds.length} · 曲线 {series.length}
         </div>
       </section>
 

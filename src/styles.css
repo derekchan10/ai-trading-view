@@ -61,9 +61,7 @@ button {
 }
 
 .brand-copy {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
+  display: block;
   min-width: 0;
 }
 
@@ -258,18 +256,22 @@ button {
 
 .control-strip {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 16px;
-  min-height: 58px;
+  gap: 8px;
+  min-height: 52px;
   margin-top: 10px;
-  padding: 10px 14px;
+  padding: 8px 12px;
+  overflow: visible;
 }
 
 .segmented {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex: 0 0 auto;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .segmented > span,
@@ -277,7 +279,7 @@ button {
 .range-field span,
 .date-field span {
   color: #475467;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -289,13 +291,13 @@ button {
 }
 
 .segmented button {
-  height: 30px;
-  padding: 0 13px;
+  height: 28px;
+  padding: 0 9px;
   border: 0;
   border-right: 1px solid #cbd5e1;
   background: #ffffff;
   color: #172033;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -311,50 +313,74 @@ button {
 .date-field {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex: 0 0 auto;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .market-field {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex: 0 0 auto;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .range-field {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex: 0 0 auto;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .market-field select,
 .range-field select {
-  height: 32px;
-  min-width: 122px;
+  height: 30px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
-  padding: 0 28px 0 9px;
+  padding: 0 24px 0 8px;
   color: #172033;
   background: #ffffff;
+  font-size: 12px;
   font-weight: 700;
+}
+
+.market-field select {
+  width: 126px;
+}
+
+.range-field select {
+  width: 102px;
 }
 
 .date-field input {
-  height: 32px;
+  width: 122px;
+  height: 30px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
-  padding: 0 9px;
+  padding: 0 7px;
   color: #172033;
   background: #ffffff;
+  font-size: 12px;
 }
 
 .summary-pill {
+  flex: 1 1 auto;
+  max-width: 250px;
   margin-left: auto;
-  padding: 8px 12px;
+  padding: 6px 9px;
   border-radius: 6px;
   background: #f8fafc;
   color: #475467;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workspace {
