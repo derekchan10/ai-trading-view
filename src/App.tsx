@@ -133,6 +133,7 @@ export default function App() {
   const [bulkSymbolIds, setBulkSymbolIds] = useState<string[]>([]);
   const [bulkTagIds, setBulkTagIds] = useState<string[]>([]);
   const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
+  const [symbolReturnPanel, setSymbolReturnPanel] = useState<ActivePanel | null>(null);
   const [workspaceSession, setWorkspaceSession] = useState<WorkspaceSession | null>(() => loadWorkspaceSession());
   const [workspaceForm, setWorkspaceForm] = useState(emptyWorkspaceForm);
   const [workspaceMessage, setWorkspaceMessage] = useState('');
@@ -578,11 +579,12 @@ export default function App() {
     setSymbolForm(emptySymbolForm);
     setSymbolError('');
     if (wasEditing) {
-      setActivePanel(null);
+      setActivePanel(symbolReturnPanel);
+      setSymbolReturnPanel(null);
     }
   }
 
-  function editSymbol(symbol: SymbolItem) {
+  function editSymbol(symbol: SymbolItem, returnPanel: ActivePanel | null = null) {
     setSymbolForm({
       id: symbol.id,
       market: symbol.market,
@@ -592,6 +594,7 @@ export default function App() {
       tagIds: symbol.tagIds,
     });
     setSymbolError('');
+    setSymbolReturnPanel(returnPanel);
     setActivePanel('symbol');
   }
 
@@ -899,6 +902,7 @@ export default function App() {
             onClick={() => {
               setSymbolForm(emptySymbolForm);
               setSymbolError('');
+              setSymbolReturnPanel(null);
               setActivePanel('symbol');
             }}
           >
@@ -1301,7 +1305,16 @@ export default function App() {
                 <div className="drawer-footer">
                   {symbolError && <div className="form-error">{symbolError}</div>}
                   {symbolForm.id && (
-                    <button className="ghost-button" type="button" onClick={() => setSymbolForm(emptySymbolForm)}>
+                    <button
+                      className="ghost-button"
+                      type="button"
+                      onClick={() => {
+                        setSymbolForm(emptySymbolForm);
+                        setSymbolError('');
+                        setActivePanel(symbolReturnPanel);
+                        setSymbolReturnPanel(null);
+                      }}
+                    >
                       取消编辑
                     </button>
                   )}
@@ -1468,7 +1481,7 @@ export default function App() {
                               </span>
                             </label>
                             <div className="batch-symbol-actions">
-                              <button type="button" onClick={() => editSymbol(symbol)}>
+                              <button type="button" onClick={() => editSymbol(symbol, 'batch')}>
                                 编辑
                               </button>
                               <button
