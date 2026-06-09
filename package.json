@@ -3,10 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "dev:server": "node --disable-warning=ExperimentalWarning server/index.mjs",
+    "vite:preview": "vite preview --host 0.0.0.0",
+    "preview": "node --disable-warning=ExperimentalWarning server/index.mjs",
+    "serve": "node --disable-warning=ExperimentalWarning server/index.mjs",
+    "start": "node --disable-warning=ExperimentalWarning server/index.mjs",
+    "local": "npm run build && node --disable-warning=ExperimentalWarning server/index.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",

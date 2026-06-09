@@ -2,7 +2,9 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CirclePlus,
+  Copy,
   DatabaseZap,
+  KeyRound,
   ListChecks,
   Shuffle,
   RefreshCw,
@@ -16,12 +18,27 @@ import {
 import { PerformanceChart } from './components/PerformanceChart';
 import type { ChartExportPayload } from './components/PerformanceChart';
 import { buildPerformanceSeries } from './services/marketData';
-import { loadState, resetState, saveState } from './services/storage';
+import {
+  clearWorkspaceSession,
+  createWorkspace,
+  joinWorkspace,
+  loadRemoteState,
+  loadState,
+  loadWorkspaceSession,
+  resetRemoteState,
+  resetState,
+  rotateWorkspaceCode,
+  saveRemoteState,
+  saveState,
+} from './services/storage';
+import type { WorkspaceRole, WorkspaceSession } from './services/storage';
 import type { AppState, ChartMode, Interval, Market, PerformanceSeries, SymbolItem, Tag } from './types';
 import './styles.css';
 
 type CssVars = CSSProperties & Record<`--${string}`, string>;
 type BatchMarketFilter = Market | 'ALL';
+type SyncStatus = 'loading' | 'saving' | 'synced' | 'offline' | 'local' | 'readonly';
+type ActivePanel = 'symbol' | 'tags' | 'batch' | 'workspace';
 
 const markets: Array<{ value: Market; label: string }> = [
   { value: 'CN_A', label: 'A股' },
@@ -93,6 +110,11 @@ const emptyBatchFilter = {
   tagIds: [] as string[],
 };
 
+const emptyWorkspaceForm = {
+  name: 'AI产业链研究',
+  code: '',
+};
+
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
   const [series, setSeries] = useState<PerformanceSeries[]>([]);
@@ -106,14 +128,90 @@ export default function App() {
   const [batchFilter, setBatchFilter] = useState(emptyBatchFilter);
   const [bulkSymbolIds, setBulkSymbolIds] = useState<string[]>([]);
   const [bulkTagIds, setBulkTagIds] = useState<string[]>([]);
-  const [activePanel, setActivePanel] = useState<'symbol' | 'tags' | 'batch' | null>(null);
+  const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
+  const [workspaceSession, setWorkspaceSession] = useState<WorkspaceSession | null>(() => loadWorkspaceSession());
+  const [workspaceForm, setWorkspaceForm] = useState(emptyWorkspaceForm);
+  const [workspaceMessage, setWorkspaceMessage] = useState('');
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => (loadWorkspaceSession() ? 'loading' : 'local'));
   const [symbolError, setSymbolError] = useState('');
   const [batchMessage, setBatchMessage] = useState('');
   const lastRefreshKeyRef = useRef(refreshKey);
+  const remoteReadyRef = useRef(false);
+  const stateRef = useRef(state);
+  const workspaceSessionRef = useRef(workspaceSession);
 
   useEffect(() => {
+    stateRef.current = state;
     saveState(state);
   }, [state]);
+
+  useEffect(() => {
+    workspaceSessionRef.current = workspaceSession;
+  }, [workspaceSession]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const session = workspaceSessionRef.current;
+    if (!session) {
+      remoteReadyRef.current = true;
+      setSyncStatus('local');
+      return () => {
+        cancelled = true;
+      };
+    }
+    setSyncStatus('loading');
+    loadRemoteState(session)
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+        setWorkspaceSession(result.session);
+        if (result.state) {
+          setState(result.state);
+          saveState(result.state);
+        }
+        remoteReadyRef.current = true;
+        setSyncStatus(result.session.role === 'viewer' ? 'readonly' : 'synced');
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        remoteReadyRef.current = true;
+        setSyncStatus(session.role === 'viewer' ? 'readonly' : 'offline');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!remoteReadyRef.current) {
+      return undefined;
+    }
+    const session = workspaceSessionRef.current;
+    if (!session) {
+      setSyncStatus('local');
+      return undefined;
+    }
+    if (session.role === 'viewer') {
+      setSyncStatus('readonly');
+      return undefined;
+    }
+    setSyncStatus('saving');
+    const timer = window.setTimeout(() => {
+      saveRemoteState(session, state)
+        .then((nextSession) => {
+          setWorkspaceSession(nextSession);
+          setSyncStatus('synced');
+        })
+        .catch((error: unknown) => {
+          setWorkspaceMessage(error instanceof Error ? error.message : '共享保存失败');
+          setSyncStatus('offline');
+        });
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [state, workspaceSession?.code, workspaceSession?.role, workspaceSession?.workspaceId]);
 
   useEffect(() => {
     if (activePanel === 'tags') {
@@ -254,6 +352,28 @@ export default function App() {
     const endYear = state.endDate.slice(0, 4);
     return `${startYear}年-${endYear}年 涨幅节奏`;
   }, [state.endDate, state.startDate]);
+
+  const syncLabel = useMemo(() => {
+    if (syncStatus === 'loading') {
+      return '读取共享数据';
+    }
+    if (syncStatus === 'saving') {
+      return '保存中';
+    }
+    if (syncStatus === 'readonly') {
+      return '只读工作区';
+    }
+    if (syncStatus === 'local') {
+      return '本地模式';
+    }
+    if (syncStatus === 'offline') {
+      return '共享离线';
+    }
+    return '共享已同步';
+  }, [syncStatus]);
+
+  const canEditWorkspace = !workspaceSession || workspaceSession.role === 'editor';
+  const workspaceRoleLabel = workspaceSession?.role === 'viewer' ? '只读' : '编辑';
 
   function updateState(patch: Partial<AppState>) {
     setState((current) => ({ ...current, ...patch }));
@@ -613,6 +733,17 @@ export default function App() {
   }
 
   function resetAll() {
+    const session = workspaceSessionRef.current;
+    if (session?.role === 'viewer') {
+      setWorkspaceMessage('只读工作区不能恢复默认。');
+      setActivePanel('workspace');
+      return;
+    }
+    if (session?.role === 'editor') {
+      void resetRemoteState(session)
+        .then((nextSession) => setWorkspaceSession(nextSession))
+        .catch((error: unknown) => setWorkspaceMessage(error instanceof Error ? error.message : '工作区重置失败'));
+    }
     setState(resetState());
     setSymbolForm(emptySymbolForm);
     setTagForm(createEmptyTagForm());
@@ -622,6 +753,82 @@ export default function App() {
     setBulkTagIds([]);
     setActivePanel(null);
     setRefreshKey((value) => value + 1);
+  }
+
+  async function submitCreateWorkspace(event: FormEvent) {
+    event.preventDefault();
+    setWorkspaceMessage('正在创建工作区...');
+    try {
+      const result = await createWorkspace(workspaceForm.name, stateRef.current);
+      setWorkspaceSession(result.session);
+      if (result.state) {
+        setState(result.state);
+      }
+      remoteReadyRef.current = true;
+      setSyncStatus('synced');
+      setWorkspaceMessage('工作区已创建，编辑代码和只读代码已生成。');
+    } catch (error) {
+      setWorkspaceMessage(error instanceof Error ? error.message : '创建工作区失败');
+    }
+  }
+
+  async function submitJoinWorkspace(event: FormEvent) {
+    event.preventDefault();
+    const code = workspaceForm.code.trim();
+    if (!code) {
+      setWorkspaceMessage('请输入工作区代码。');
+      return;
+    }
+    setWorkspaceMessage('正在进入工作区...');
+    try {
+      const result = await joinWorkspace(code);
+      setWorkspaceSession(result.session);
+      if (result.state) {
+        setState(result.state);
+        saveState(result.state);
+      }
+      remoteReadyRef.current = true;
+      setSyncStatus(result.session.role === 'viewer' ? 'readonly' : 'synced');
+      setWorkspaceForm((current) => ({ ...current, code: '' }));
+      setWorkspaceMessage(`已进入「${result.session.workspaceName}」。`);
+    } catch (error) {
+      setWorkspaceMessage(error instanceof Error ? error.message : '进入工作区失败');
+    }
+  }
+
+  function leaveWorkspace() {
+    clearWorkspaceSession();
+    setWorkspaceSession(null);
+    workspaceSessionRef.current = null;
+    remoteReadyRef.current = true;
+    setSyncStatus('local');
+    setWorkspaceMessage('已退出工作区，当前使用本地模式。');
+  }
+
+  async function rotateCode(role: WorkspaceRole) {
+    const session = workspaceSessionRef.current;
+    if (!session || session.role !== 'editor') {
+      setWorkspaceMessage('只有编辑代码可以重置工作区代码。');
+      return;
+    }
+    try {
+      const result = await rotateWorkspaceCode(session, role);
+      setWorkspaceSession(result.session);
+      setWorkspaceMessage(`${role === 'viewer' ? '只读' : '编辑'}代码已重置：${result.code}`);
+    } catch (error) {
+      setWorkspaceMessage(error instanceof Error ? error.message : '重置代码失败');
+    }
+  }
+
+  function copyCode(code?: string) {
+    if (!code) {
+      setWorkspaceMessage('当前没有可复制的代码。');
+      return;
+    }
+    void navigator.clipboard
+      .writeText(code)
+      .then(() => setWorkspaceMessage('代码已复制。'))
+      .catch(() => setWorkspaceMessage(code));
   }
 
   function exportChartSnapshot(chartPayload: ChartExportPayload) {
@@ -635,13 +842,26 @@ export default function App() {
           <DatabaseZap size={26} />
           <div className="brand-copy">
             <h1>AI 产业链涨幅节奏看板</h1>
-            <p>纯前端 · 本地股票池 · 标签联动</p>
+            <p>Node后端 · 共享股票池 · 标签联动</p>
           </div>
         </div>
         <div className="top-actions">
+          <span className={`sync-pill ${syncStatus}`}>{syncLabel}</span>
+          <button
+            className={`top-action-button ${activePanel === 'workspace' ? 'active' : ''}`}
+            type="button"
+            onClick={() => {
+              setWorkspaceMessage('');
+              setActivePanel('workspace');
+            }}
+          >
+            <KeyRound size={15} />
+            {workspaceSession ? workspaceSession.workspaceName : '工作区'}
+          </button>
           <button
             className={`top-action-button ${activePanel === 'symbol' ? 'active' : ''}`}
             type="button"
+            disabled={!canEditWorkspace}
             onClick={() => {
               setSymbolForm(emptySymbolForm);
               setSymbolError('');
@@ -654,6 +874,7 @@ export default function App() {
           <button
             className={`top-action-button ${activePanel === 'batch' ? 'active' : ''}`}
             type="button"
+            disabled={!canEditWorkspace}
             onClick={() => {
               setBatchMessage('');
               setActivePanel('batch');
@@ -665,6 +886,7 @@ export default function App() {
           <button
             className={`top-action-button ${activePanel === 'tags' ? 'active' : ''}`}
             type="button"
+            disabled={!canEditWorkspace}
             onClick={() => setActivePanel('tags')}
           >
             <Tags size={15} />
@@ -674,7 +896,7 @@ export default function App() {
             <RefreshCw size={15} />
             刷新行情
           </button>
-          <button className="top-action-button danger" onClick={resetAll} title="恢复默认股票池">
+          <button className="top-action-button danger" disabled={!canEditWorkspace} onClick={resetAll} title="恢复默认股票池">
             <RotateCcw size={15} />
             恢复默认
           </button>
@@ -846,20 +1068,103 @@ export default function App() {
                       : '录入股票'
                     : activePanel === 'batch'
                       ? '股票管理'
-                      : '标签管理'}
+                      : activePanel === 'tags'
+                        ? '标签管理'
+                        : '工作区协作'}
                 </h2>
                 <p>
                   {activePanel === 'symbol'
                     ? '添加代码、名称、市场和标签'
                     : activePanel === 'batch'
                       ? '批量导入、编辑、打标签和删除'
-                      : '按类型维护标签、颜色和删除项'}
+                      : activePanel === 'tags'
+                        ? '按类型维护标签、颜色和删除项'
+                        : '创建工作区、输入代码加入或分享协作代码'}
                 </p>
               </div>
               <button className="icon-button" type="button" onClick={() => setActivePanel(null)} title="关闭">
                 <X size={18} />
               </button>
             </div>
+
+            {activePanel === 'workspace' && (
+              <div className="workspace-manager">
+                <section className="workspace-card">
+                  <div className="workspace-card-head">
+                    <strong>{workspaceSession ? workspaceSession.workspaceName : '本地模式'}</strong>
+                    <span>{workspaceSession ? `${workspaceRoleLabel}权限` : '未进入工作区'}</span>
+                  </div>
+                  <p>
+                    {workspaceSession
+                      ? '当前股票池、标签和看板配置会按工作区同步。'
+                      : '创建工作区后会生成编辑代码和只读代码；别人输入代码即可进入同一个工作区。'}
+                  </p>
+                  {workspaceSession && (
+                    <div className="workspace-code-list">
+                      <WorkspaceCodeRow label="当前代码" code={workspaceSession.code} onCopy={copyCode} />
+                      {workspaceSession.role === 'editor' && (
+                        <>
+                          <WorkspaceCodeRow label="编辑代码" code={workspaceSession.editCode} onCopy={copyCode} />
+                          <WorkspaceCodeRow label="只读代码" code={workspaceSession.viewCode} onCopy={copyCode} />
+                          <div className="workspace-code-actions">
+                            <button type="button" onClick={() => void rotateCode('viewer')}>
+                              重置只读代码
+                            </button>
+                            <button type="button" onClick={() => void rotateCode('editor')}>
+                              重置编辑代码
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {workspaceSession && (
+                    <button className="ghost-button" type="button" onClick={leaveWorkspace}>
+                      退出工作区
+                    </button>
+                  )}
+                </section>
+
+                <form className="workspace-card" onSubmit={submitCreateWorkspace}>
+                  <div className="workspace-card-head">
+                    <strong>创建工作区</strong>
+                    <span>使用当前看板数据</span>
+                  </div>
+                  <label>
+                    <span>工作区名称</span>
+                    <input
+                      value={workspaceForm.name}
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, name: event.target.value }))}
+                      placeholder="AI产业链研究"
+                    />
+                  </label>
+                  <button className="primary-button" type="submit">
+                    <KeyRound size={16} />
+                    创建并生成代码
+                  </button>
+                </form>
+
+                <form className="workspace-card" onSubmit={submitJoinWorkspace}>
+                  <div className="workspace-card-head">
+                    <strong>加入工作区</strong>
+                    <span>输入别人给你的代码</span>
+                  </div>
+                  <label>
+                    <span>工作区代码</span>
+                    <input
+                      value={workspaceForm.code}
+                      onChange={(event) => setWorkspaceForm((current) => ({ ...current, code: event.target.value }))}
+                      placeholder="EDIT-ABCD-2345-WXYZ"
+                    />
+                  </label>
+                  <button className="primary-button" type="submit">
+                    进入工作区
+                  </button>
+                </form>
+
+                {workspaceMessage && <div className="workspace-message">{workspaceMessage}</div>}
+              </div>
+            )}
 
             {activePanel === 'symbol' && (
               <form className="drawer-form" onSubmit={submitSymbol}>
@@ -1253,6 +1558,26 @@ function Metric({ value }: { value: number | null }) {
     return <span>-</span>;
   }
   return <span className={value >= 0 ? 'positive' : 'negative'}>{value.toFixed(2)}%</span>;
+}
+
+function WorkspaceCodeRow({
+  label,
+  code,
+  onCopy,
+}: {
+  label: string;
+  code?: string;
+  onCopy: (code?: string) => void;
+}) {
+  return (
+    <div className="workspace-code-row">
+      <span>{label}</span>
+      <strong>{code ?? '未生成'}</strong>
+      <button type="button" onClick={() => onCopy(code)} title="复制代码">
+        <Copy size={14} />
+      </button>
+    </div>
+  );
 }
 
 async function exportChartWithTable(

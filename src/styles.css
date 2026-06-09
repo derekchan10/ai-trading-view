@@ -90,6 +90,52 @@ button {
   margin-left: 16px;
 }
 
+.sync-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.sync-pill.synced {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+  color: #0f766e;
+}
+
+.sync-pill.saving,
+.sync-pill.loading {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.sync-pill.offline {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.sync-pill.local {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.sync-pill.readonly {
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
 .top-action-button {
   display: inline-flex;
   align-items: center;
@@ -108,6 +154,11 @@ button {
 
 .top-action-button:hover {
   background: #f1f5f9;
+}
+
+.top-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .top-action-button.active {
@@ -1064,6 +1115,126 @@ button {
 
 .drawer-footer .primary-button {
   min-width: 120px;
+}
+
+.workspace-manager {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-height: 0;
+  overflow: auto;
+  padding-top: 14px;
+}
+
+.workspace-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.workspace-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workspace-card-head strong {
+  color: #172033;
+  font-size: 15px;
+}
+
+.workspace-card-head span,
+.workspace-card p,
+.workspace-card label span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.workspace-card p {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.workspace-card label {
+  display: grid;
+  gap: 6px;
+}
+
+.workspace-card input {
+  height: 36px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0 10px;
+  color: #172033;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.workspace-code-list {
+  display: grid;
+  gap: 8px;
+}
+
+.workspace-code-row {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) 34px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.workspace-code-row span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.workspace-code-row strong {
+  overflow: hidden;
+  color: #172033;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-code-row button,
+.workspace-code-actions button {
+  height: 32px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #172033;
+  font-weight: 800;
+}
+
+.workspace-code-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.workspace-code-actions button {
+  padding: 0 10px;
+}
+
+.workspace-message {
+  padding: 10px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .batch-management {

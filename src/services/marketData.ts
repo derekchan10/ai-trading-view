@@ -10,11 +10,36 @@ import type {
 } from '../types';
 
 const cache = new Map<string, PricePoint[]>();
-const inFlightRequests = new Map<string, Promise<PricePoint[]>>();
 const CACHE_PREFIX = 'ai-trading-view.price-cache.v1.';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12;
-const FETCH_SOURCE_KEY = 'ai-trading-view.fetch-source.v1';
-const REQUEST_CONCURRENCY = 5;
+const API_TIMEOUT_MS = 240000;
+
+interface PriceBatchApiItem {
+  id: string;
+  providerSymbol: string;
+  prices: PricePoint[];
+}
+
+interface PriceBatchApiWarning {
+  id: string;
+  providerSymbol?: string;
+  message: string;
+}
+
+interface PriceBatchApiResponse {
+  items?: PriceBatchApiItem[];
+  warnings?: PriceBatchApiWarning[];
+}
+
+interface PriceBatchResult {
+  pricesById: Map<string, PricePoint[]>;
+  warningById: Map<string, string>;
+}
+
+interface PendingSymbol {
+  symbol: SymbolItem;
+  cacheKey: string;
+}
 
 export function toYahooSymbol(market: Market, code: string): string {
   const clean = code.trim().toUpperCase();
@@ -53,105 +78,78 @@ export function toYahooSymbol(market: Market, code: string): string {
   return clean;
 }
 
-export async function fetchPriceSeries(
-  symbol: SymbolItem,
+async function fetchBatchPriceSeries(
+  symbols: SymbolItem[],
   interval: Interval,
   startDate: string,
   endDate: string,
   refresh = false,
-): Promise<PricePoint[]> {
-  const providerSymbol = toYahooSymbol(symbol.market, symbol.code);
-  const cacheKey = `${providerSymbol}|${interval}|${startDate}|${endDate}`;
-  if (!refresh && cache.has(cacheKey)) {
-    return cache.get(cacheKey) ?? [];
-  }
-  if (!refresh) {
-    const stored = readStoredPriceCache(cacheKey);
-    if (stored) {
-      cache.set(cacheKey, stored);
-      return stored;
-    }
-  }
-  const pending = inFlightRequests.get(cacheKey);
-  if (pending) {
-    return pending;
-  }
+): Promise<PriceBatchResult> {
+  const pricesById = new Map<string, PricePoint[]>();
+  const warningById = new Map<string, string>();
+  const pending: PendingSymbol[] = [];
 
-  const request = requestPriceSeries(providerSymbol, cacheKey, interval, startDate, endDate);
-  inFlightRequests.set(cacheKey, request);
-  try {
-    return await request;
-  } finally {
-    inFlightRequests.delete(cacheKey);
-  }
-}
-
-async function requestPriceSeries(
-  providerSymbol: string,
-  cacheKey: string,
-  interval: Interval,
-  startDate: string,
-  endDate: string,
-): Promise<PricePoint[]> {
-  const period1 = Math.floor(new Date(`${startDate}T00:00:00Z`).getTime() / 1000);
-  const end = new Date(`${endDate}T00:00:00Z`);
-  end.setUTCDate(end.getUTCDate() + 1);
-  const period2 = Math.floor(end.getTime() / 1000);
-  const params = new URLSearchParams({
-    period1: String(period1),
-    period2: String(period2),
-    interval,
-    events: 'history',
-    includeAdjustedClose: 'true',
-  });
-
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(providerSymbol)}?${params}`;
-  let payload: any;
-  try {
-    payload = await fetchJsonWithFallback(url);
-  } catch (error) {
-    const stored = readStoredPriceCache(cacheKey);
-    if (stored) {
-      cache.set(cacheKey, stored);
-      return stored;
-    }
-    throw error;
-  }
-  const error = payload?.chart?.error;
-  if (error) {
-    throw new Error(`${providerSymbol}: ${error.description ?? '暂无行情'}`);
-  }
-
-  const result = payload?.chart?.result?.[0];
-  if (!result) {
-    throw new Error(`${providerSymbol} 暂无行情`);
-  }
-
-  const timestamps: number[] = result.timestamp ?? [];
-  const quote = result.indicators?.quote?.[0] ?? {};
-  const closes: Array<number | null> = quote.close ?? [];
-  const volumes: Array<number | null> = quote.volume ?? [];
-  const adjusted: Array<number | null> = result.indicators?.adjclose?.[0]?.adjclose ?? [];
-
-  const byDate = new Map<string, PricePoint>();
-  timestamps.forEach((timestamp, index) => {
-    const close = adjusted[index] && adjusted[index]! > 0 ? adjusted[index] : closes[index];
-    if (!close || close <= 0) {
+  symbols.forEach((symbol) => {
+    const providerSymbol = toYahooSymbol(symbol.market, symbol.code);
+    const cacheKey = `${providerSymbol}|${interval}|${startDate}|${endDate}`;
+    if (!refresh && cache.has(cacheKey)) {
+      pricesById.set(symbol.id, cache.get(cacheKey) ?? []);
       return;
     }
-    const date = new Date(timestamp * 1000).toISOString().slice(0, 10);
-    byDate.set(date, {
-      date,
-      close,
-      rawClose: closes[index],
-      volume: volumes[index],
-    });
+    if (!refresh) {
+      const stored = readStoredPriceCache(cacheKey);
+      if (stored) {
+        cache.set(cacheKey, stored);
+        pricesById.set(symbol.id, stored);
+        return;
+      }
+    }
+    pending.push({ symbol, cacheKey });
   });
 
-  const series = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
-  cache.set(cacheKey, series);
-  writeStoredPriceCache(cacheKey, series);
-  return series;
+  if (!pending.length) {
+    return { pricesById, warningById };
+  }
+
+  try {
+    const payload = await requestBatchPriceSeries(
+      pending.map((item) => item.symbol),
+      interval,
+      startDate,
+      endDate,
+      refresh,
+    );
+    const pendingById = new Map(pending.map((item) => [item.symbol.id, item]));
+
+    payload.items?.forEach((item) => {
+      const pendingItem = pendingById.get(item.id);
+      if (!pendingItem || !Array.isArray(item.prices)) {
+        return;
+      }
+      pricesById.set(item.id, item.prices);
+      cache.set(pendingItem.cacheKey, item.prices);
+      writeStoredPriceCache(pendingItem.cacheKey, item.prices);
+    });
+
+    payload.warnings?.forEach((warning) => {
+      if (warning.id) {
+        warningById.set(warning.id, warning.message || '行情请求失败');
+      }
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '行情请求失败';
+    pending.forEach((item) => {
+      const stored = readStoredPriceCache(item.cacheKey);
+      if (stored) {
+        cache.set(item.cacheKey, stored);
+        pricesById.set(item.symbol.id, stored);
+        return;
+      }
+      warningById.set(item.symbol.id, message);
+    });
+  }
+
+  return { pricesById, warningById };
 }
 
 function readStoredPriceCache(cacheKey: string): PricePoint[] | null {
@@ -185,91 +183,59 @@ function writeStoredPriceCache(cacheKey: string, data: PricePoint[]): void {
   }
 }
 
-async function fetchJsonWithFallback(url: string): Promise<any> {
-  const candidates = getOrderedFetchCandidates(url);
-  const errors: string[] = [];
-
-  for (const candidate of candidates) {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        const response = await fetchWithTimeout(candidate.url, 14000);
-        if (!response.ok) {
-          errors.push(`${candidate.label}:${response.status}`);
-          if (response.status === 429) {
-            await sleep(1200 + attempt * 1800);
-            continue;
-          }
-          break;
-        }
-        writePreferredFetchSource(candidate.id);
-        return await response.json();
-      } catch (error) {
-        errors.push(`${candidate.label}:${error instanceof Error ? error.message : '请求失败'}`);
-        await sleep(350 + attempt * 800);
-      }
-    }
-  }
-
-  throw new Error(`行情请求失败：${errors[errors.length - 1] ?? '网络或跨域限制'}`);
-}
-
-function getOrderedFetchCandidates(url: string) {
-  const encoded = encodeURIComponent(url);
-  const candidates = [
-    {
-      id: 'allorigins',
-      label: 'allorigins',
-      url: `https://api.allorigins.win/raw?url=${encoded}`,
+async function requestBatchPriceSeries(
+  symbols: SymbolItem[],
+  interval: Interval,
+  startDate: string,
+  endDate: string,
+  refresh: boolean,
+): Promise<PriceBatchApiResponse> {
+  const response = await fetchWithTimeout('/api/prices/batch', API_TIMEOUT_MS, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
     },
-    {
-      id: 'corsproxy',
-      label: 'corsproxy',
-      url: `https://corsproxy.io/?${encoded}`,
-    },
-    {
-      id: 'direct',
-      label: 'direct',
-      url,
-    },
-  ];
-  const preferred = readPreferredFetchSource();
-  if (!preferred) {
-    return candidates;
-  }
-  return [...candidates].sort((a, b) => {
-    if (a.id === preferred) {
-      return -1;
-    }
-    if (b.id === preferred) {
-      return 1;
-    }
-    return 0;
+    body: JSON.stringify({
+      symbols: symbols.map((symbol) => ({
+        id: symbol.id,
+        market: symbol.market,
+        code: symbol.code,
+        name: symbol.name,
+      })),
+      interval,
+      startDate,
+      endDate,
+      refresh,
+    }),
   });
-}
 
-function readPreferredFetchSource(): string | null {
-  try {
-    return window.localStorage.getItem(FETCH_SOURCE_KEY);
-  } catch {
-    return null;
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
   }
+
+  return (await response.json()) as PriceBatchApiResponse;
 }
 
-function writePreferredFetchSource(sourceId: string): void {
-  try {
-    window.localStorage.setItem(FETCH_SOURCE_KEY, sourceId);
-  } catch {
-    // Ignore storage failures; it only affects future request ordering.
-  }
-}
-
-async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  timeoutMs: number,
+  init?: RequestInit,
+): Promise<Response> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { signal: controller.signal });
+    return await fetch(url, { ...init, signal: controller.signal });
   } finally {
     window.clearTimeout(timer);
+  }
+}
+
+async function readApiError(response: Response): Promise<string> {
+  try {
+    const payload = (await response.json()) as { error?: string };
+    return payload.error ?? `行情接口请求失败：${response.status}`;
+  } catch {
+    return `行情接口请求失败：${response.status}`;
   }
 }
 
@@ -284,23 +250,34 @@ export async function buildPerformanceSeries(
   refresh = false,
 ): Promise<{ series: PerformanceSeries[]; warnings: string[] }> {
   const tagMap = new Map(tags.map((tag) => [tag.id, tag]));
-  const loaded = await mapWithConcurrency(symbols, REQUEST_CONCURRENCY, async (symbol) => {
-      const prices = await fetchPriceSeries(symbol, interval, startDate, endDate, refresh);
-      return buildSymbolPerformance(symbol, prices, tagMap);
-  });
+  const { pricesById, warningById } = await fetchBatchPriceSeries(
+    symbols,
+    interval,
+    startDate,
+    endDate,
+    refresh,
+  );
 
   const symbolSeries: PerformanceSeries[] = [];
   const warnings: string[] = [];
-  loaded.forEach((result, index) => {
-    const symbol = symbols[index];
-    if (result.ok && result.value.data.length) {
-      symbolSeries.push(result.value);
-    } else {
-      const providerSymbol = toYahooSymbol(symbol.market, symbol.code);
-      const message = !result.ok ? result.error.message : '暂无有效行情';
-      warnings.push(`${symbol.name}(${providerSymbol})：${message}`);
+  symbols.forEach((symbol) => {
+    const prices = pricesById.get(symbol.id) ?? [];
+    if (prices.length) {
+      const built = buildSymbolPerformance(symbol, prices, tagMap);
+      if (built.data.length) {
+        symbolSeries.push(built);
+        return;
+      }
     }
+
+    const providerSymbol = toYahooSymbol(symbol.market, symbol.code);
+    const message = warningById.get(symbol.id) ?? '暂无有效行情';
+    warnings.push(`${symbol.name}(${providerSymbol})：${message}`);
   });
+
+  if (!symbols.length) {
+    return { series: [], warnings: [] };
+  }
 
   const output: PerformanceSeries[] = [];
   if (mode === 'symbols' || mode === 'mixed') {
@@ -311,34 +288,6 @@ export async function buildPerformanceSeries(
   }
 
   return { series: output, warnings };
-}
-
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  mapper: (item: T, index: number) => Promise<R>,
-): Promise<Array<{ ok: true; value: R } | { ok: false; error: Error }>> {
-  const results: Array<{ ok: true; value: R } | { ok: false; error: Error }> = [];
-  let cursor = 0;
-
-  async function worker() {
-    while (cursor < items.length) {
-      const index = cursor;
-      cursor += 1;
-      try {
-        results[index] = { ok: true, value: await mapper(items[index], index) };
-      } catch (error) {
-        results[index] = {
-          ok: false,
-          error: error instanceof Error ? error : new Error('行情请求失败'),
-        };
-      }
-      await sleep(80);
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
-  return results;
 }
 
 function buildSymbolPerformance(
@@ -555,8 +504,4 @@ function inferStage(points: PerformancePoint[]): string {
 
 function round(value: number): number {
   return Math.round(value * 100) / 100;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
