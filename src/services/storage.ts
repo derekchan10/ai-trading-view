@@ -5,6 +5,7 @@ const STORAGE_KEY = 'ai-trading-view.state.v2';
 const WORKSPACE_SESSION_KEY = 'ai-trading-view.workspace-session.v1';
 const WORKSPACE_HISTORY_KEY = 'ai-trading-view.workspace-history.v1';
 const LEGACY_STORAGE_KEYS = ['ai-trading-view.state.v1'];
+const PRICE_CACHE_PREFIXES = ['ai-trading-view.price-cache.'];
 const REMOVED_SYMBOLS = new Set(['US:JNPR']);
 const NEW_DEFAULT_SYMBOLS = new Set(['US:NOK']);
 
@@ -42,6 +43,7 @@ export function loadState(): AppState {
   const fallback = createInitialState();
   try {
     LEGACY_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
+    clearLocalStorageByPrefixes(PRICE_CACHE_PREFIXES);
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) {
       return fallback;
@@ -53,7 +55,7 @@ export function loadState(): AppState {
 }
 
 export function saveState(state: AppState): void {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  safeSetLocalStorageItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 export function resetState(): AppState {
@@ -75,7 +77,7 @@ export function loadWorkspaceSession(): WorkspaceSession | null {
 }
 
 export function saveWorkspaceSession(session: WorkspaceSession): void {
-  window.localStorage.setItem(WORKSPACE_SESSION_KEY, JSON.stringify(session));
+  safeSetLocalStorageItem(WORKSPACE_SESSION_KEY, JSON.stringify(session));
   rememberWorkspaceSession(session);
 }
 
@@ -97,7 +99,7 @@ export function loadWorkspaceHistory(): WorkspaceHistoryItem[] {
 
 export function forgetWorkspaceHistory(workspaceId: string): void {
   const next = loadWorkspaceHistory().filter((item) => item.workspaceId !== workspaceId);
-  window.localStorage.setItem(WORKSPACE_HISTORY_KEY, JSON.stringify(next));
+  safeSetLocalStorageItem(WORKSPACE_HISTORY_KEY, JSON.stringify(next));
 }
 
 function rememberWorkspaceSession(session: WorkspaceSession): void {
@@ -116,7 +118,7 @@ function rememberWorkspaceSession(session: WorkspaceSession): void {
     nextItem,
     ...history.filter((item) => item.workspaceId !== normalized.workspaceId),
   ].slice(0, 12);
-  window.localStorage.setItem(WORKSPACE_HISTORY_KEY, JSON.stringify(next));
+  safeSetLocalStorageItem(WORKSPACE_HISTORY_KEY, JSON.stringify(next));
 }
 
 export async function createWorkspace(name: string, state: AppState): Promise<{ session: WorkspaceSession; state: AppState | null }> {
@@ -504,6 +506,46 @@ async function readApiError(response: Response): Promise<string> {
   } catch {
     return `共享数据接口请求失败：${response.status}`;
   }
+}
+
+function safeSetLocalStorageItem(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+    return;
+  } catch (error) {
+    if (!isQuotaExceededError(error)) {
+      return;
+    }
+  }
+
+  clearLocalStorageByPrefixes(PRICE_CACHE_PREFIXES);
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Keep the app usable even when browser storage is unavailable or still full.
+  }
+}
+
+function clearLocalStorageByPrefixes(prefixes: string[]): void {
+  try {
+    const keys: string[] = [];
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (key && prefixes.some((prefix) => key.startsWith(prefix))) {
+        keys.push(key);
+      }
+    }
+    keys.forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    // Some browser privacy modes can throw on storage access; ignore and continue.
+  }
+}
+
+function isQuotaExceededError(error: unknown): boolean {
+  return (
+    error instanceof DOMException &&
+    (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED')
+  );
 }
 
 function normalizeStoredSymbols(symbols: unknown[]): SymbolItem[] {

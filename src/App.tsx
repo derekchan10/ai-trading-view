@@ -15,6 +15,7 @@ import {
   RotateCcw,
   Save,
   Search,
+  Share2,
   Tags,
   Trash2,
   X,
@@ -194,6 +195,18 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    const sharedWorkspaceCode = readSharedWorkspaceCodeFromUrl();
+    if (sharedWorkspaceCode) {
+      setSyncStatus('loading');
+      void enterWorkspaceByCode(sharedWorkspaceCode, {
+        clearShareUrl: true,
+        message: '已通过分享链接进入只读工作区。',
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const session = workspaceSessionRef.current;
     if (!session) {
       remoteReadyRef.current = true;
@@ -944,10 +957,13 @@ export default function App() {
     await enterWorkspaceByCode(code);
   }
 
-  async function enterWorkspaceByCode(code: string) {
+  async function enterWorkspaceByCode(
+    code: string,
+    options: { clearShareUrl?: boolean; message?: string } = {},
+  ) {
     setWorkspaceMessage('正在进入工作区...');
     try {
-      const result = await joinWorkspace(code);
+      const result = await joinWorkspace(code.trim());
       setWorkspaceSession(result.session);
       setWorkspaceHistory(loadWorkspaceHistory());
       if (result.state) {
@@ -957,8 +973,15 @@ export default function App() {
       remoteReadyRef.current = true;
       setSyncStatus(result.session.role === 'viewer' ? 'readonly' : 'synced');
       setWorkspaceForm((current) => ({ ...current, code: '' }));
-      setWorkspaceMessage(`已进入「${result.session.workspaceName}」。`);
+      if (options.clearShareUrl) {
+        clearSharedWorkspaceCodeFromUrl();
+      }
+      setWorkspaceMessage(options.message ?? `已进入「${result.session.workspaceName}」。`);
     } catch (error) {
+      if (options.clearShareUrl) {
+        clearSharedWorkspaceCodeFromUrl();
+      }
+      remoteReadyRef.current = true;
       setWorkspaceMessage(error instanceof Error ? error.message : '进入工作区失败');
     }
   }
@@ -992,6 +1015,55 @@ export default function App() {
       setWorkspaceMessage(`${role === 'viewer' ? '只读' : '编辑'}代码${action}：${result.code}`);
     } catch (error) {
       setWorkspaceMessage(error instanceof Error ? error.message : '重置代码失败');
+    }
+  }
+
+  async function shareWorkspace() {
+    setActivePanel('workspace');
+    setWorkspaceMessage('正在准备只读分享链接...');
+    try {
+      let session = workspaceSessionRef.current;
+      if (!session) {
+        const result = await createWorkspace(workspaceForm.name, stateRef.current);
+        session = result.session;
+        setWorkspaceSession(session);
+        setWorkspaceHistory(loadWorkspaceHistory());
+        if (result.state) {
+          setState(result.state);
+        }
+        remoteReadyRef.current = true;
+        setSyncStatus('synced');
+      }
+
+      let shareCode = session.role === 'viewer' ? session.code : session.viewCode;
+      if (session.role === 'editor' && !shareCode) {
+        const result = await rotateWorkspaceCode(session, 'viewer');
+        session = result.session;
+        shareCode = result.code;
+        setWorkspaceSession(session);
+        setWorkspaceHistory(loadWorkspaceHistory());
+      }
+
+      if (!shareCode) {
+        throw new Error('当前工作区没有可分享的只读代码');
+      }
+
+      const shareText = buildWorkspaceShareText(session, shareCode);
+      const copied = await copyTextToClipboard(shareText);
+      setCopiedWorkspaceCode(shareCode);
+      if (copiedCodeTimerRef.current !== null) {
+        window.clearTimeout(copiedCodeTimerRef.current);
+      }
+      copiedCodeTimerRef.current = window.setTimeout(() => {
+        setCopiedWorkspaceCode((current) => (current === shareCode ? '' : current));
+      }, 1600);
+      setWorkspaceMessage(
+        copied
+          ? `已复制只读分享链接：${shareCode}`
+          : `复制失败，请手动复制只读代码：${shareCode}`,
+      );
+    } catch (error) {
+      setWorkspaceMessage(error instanceof Error ? error.message : '分享工作区失败');
     }
   }
 
@@ -1044,6 +1116,10 @@ export default function App() {
           >
             <KeyRound size={15} />
             {workspaceSession ? workspaceSession.workspaceName : '工作区'}
+          </button>
+          <button className="top-action-button" type="button" onClick={() => void shareWorkspace()} title="复制只读分享链接">
+            <Share2 size={15} />
+            分享工作区
           </button>
           <button
             className={`top-action-button ${activePanel === 'symbol' ? 'active' : ''}`}
@@ -1357,6 +1433,20 @@ export default function App() {
                         : '当前是只读工作区，只能查看，不能修改股票池、标签和视图。'
                       : '创建工作区后会生成编辑代码和只读代码；别人输入代码即可进入同一个工作区。'}
                   </p>
+                  <div className="workspace-share-box">
+                    <div>
+                      <strong>只读分享</strong>
+                      <span>
+                        {workspaceSession
+                          ? '复制链接后，别人打开会自动进入只读工作区'
+                          : '先创建工作区，再复制只读分享链接'}
+                      </span>
+                    </div>
+                    <button className="primary-button" type="button" onClick={() => void shareWorkspace()}>
+                      <Share2 size={15} />
+                      {workspaceSession ? '复制分享链接' : '创建并分享'}
+                    </button>
+                  </div>
                   {workspaceSession && (
                     <div className="workspace-code-list">
                       <WorkspaceCodeRow
@@ -1927,6 +2017,42 @@ function WorkspaceCodeRow({
       </button>
     </div>
   );
+}
+
+function buildWorkspaceShareText(session: WorkspaceSession, code: string): string {
+  return [
+    `工作区：${session.workspaceName}`,
+    `只读链接：${buildWorkspaceShareUrl(code)}`,
+    `只读代码：${code}`,
+  ].join('\n');
+}
+
+function buildWorkspaceShareUrl(code: string): string {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('_v');
+  url.searchParams.set('workspace', code);
+  return url.toString();
+}
+
+function readSharedWorkspaceCodeFromUrl(): string {
+  try {
+    return new URL(window.location.href).searchParams.get('workspace')?.trim() ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function clearSharedWorkspaceCodeFromUrl(): void {
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('workspace')) {
+      return;
+    }
+    url.searchParams.delete('workspace');
+    window.history.replaceState({}, '', url.toString());
+  } catch {
+    // Ignore URL cleanup failures; joining the workspace has already succeeded or failed.
+  }
 }
 
 async function copyTextToClipboard(text: string): Promise<boolean> {

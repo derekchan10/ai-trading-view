@@ -13,6 +13,7 @@ const cache = new Map<string, PricePoint[]>();
 const CACHE_PREFIX = 'ai-trading-view.price-cache.v1.';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const API_TIMEOUT_MS = 240000;
+let persistentCacheCleared = false;
 
 interface PriceBatchApiItem {
   id: string;
@@ -153,6 +154,7 @@ async function fetchBatchPriceSeries(
 }
 
 function readStoredPriceCache(cacheKey: string): PricePoint[] | null {
+  clearPersistentPriceCache();
   try {
     const raw = window.localStorage.getItem(`${CACHE_PREFIX}${cacheKey}`);
     if (!raw) {
@@ -170,16 +172,27 @@ function readStoredPriceCache(cacheKey: string): PricePoint[] | null {
 }
 
 function writeStoredPriceCache(cacheKey: string, data: PricePoint[]): void {
+  void cacheKey;
+  void data;
+  clearPersistentPriceCache();
+}
+
+function clearPersistentPriceCache(): void {
+  if (persistentCacheCleared) {
+    return;
+  }
+  persistentCacheCleared = true;
   try {
-    window.localStorage.setItem(
-      `${CACHE_PREFIX}${cacheKey}`,
-      JSON.stringify({
-        savedAt: Date.now(),
-        data,
-      }),
-    );
+    const keys: string[] = [];
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (key?.startsWith(CACHE_PREFIX)) {
+        keys.push(key);
+      }
+    }
+    keys.forEach((key) => window.localStorage.removeItem(key));
   } catch {
-    // Browser storage can be full; memory cache still works for this session.
+    // Memory cache and Node server cache still keep the app usable.
   }
 }
 

@@ -1277,6 +1277,44 @@ button {
   line-height: 1.5;
 }
 
+.workspace-share-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.workspace-share-box div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.workspace-share-box strong {
+  color: #172033;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.workspace-share-box span {
+  overflow: hidden;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-share-box .primary-button {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 10px;
+}
+
 .workspace-card label {
   display: grid;
   gap: 6px;
