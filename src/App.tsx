@@ -9,6 +9,7 @@ import {
   DatabaseZap,
   KeyRound,
   ListChecks,
+  Pencil,
   Shuffle,
   RefreshCw,
   RotateCcw,
@@ -96,6 +97,7 @@ const tagColorPalette = [
 
 function createEmptyTagForm() {
   return {
+    id: '',
     name: '',
     category: '产业链环节',
     color: randomTagColor(),
@@ -732,16 +734,35 @@ export default function App() {
       return;
     }
     const tag: Tag = {
-      id: `tag-${Date.now()}`,
+      id: tagForm.id || `tag-${Date.now()}`,
       name,
       category: tagForm.category.trim() || '自定义',
       color: tagForm.color,
     };
-    setState((current) => ({ ...current, tags: [...current.tags, tag] }));
+    setState((current) => ({
+      ...current,
+      tags: tagForm.id
+        ? current.tags.map((item) => (item.id === tagForm.id ? tag : item))
+        : [...current.tags, tag],
+    }));
     setTagForm({
       ...createEmptyTagForm(),
       category: tagForm.category.trim() || '产业链环节',
     });
+  }
+
+  function editTag(tag: Tag) {
+    setTagForm({
+      id: tag.id,
+      name: tag.name,
+      category: tag.category,
+      color: tag.color,
+    });
+    setActivePanel('tags');
+  }
+
+  function cancelTagEdit() {
+    setTagForm(createEmptyTagForm());
   }
 
   function deleteTag(tagId: string) {
@@ -754,6 +775,9 @@ export default function App() {
       })),
       selectedTagIds: current.selectedTagIds.filter((id) => id !== tagId),
     }));
+    if (tagForm.id === tagId) {
+      setTagForm(createEmptyTagForm());
+    }
   }
 
   function resetAll() {
@@ -925,7 +949,10 @@ export default function App() {
             className={`top-action-button ${activePanel === 'tags' ? 'active' : ''}`}
             type="button"
             disabled={!canEditWorkspace}
-            onClick={() => setActivePanel('tags')}
+            onClick={() => {
+              setTagForm(createEmptyTagForm());
+              setActivePanel('tags');
+            }}
           >
             <Tags size={15} />
             标签管理
@@ -1580,10 +1607,17 @@ export default function App() {
                         </button>
                       </div>
                     </label>
-                    <button className="primary-button add-tag-button" type="submit">
-                      <CirclePlus size={16} />
-                      新增标签
-                    </button>
+                    <div className="tag-form-actions">
+                      {tagForm.id && (
+                        <button className="ghost-button" type="button" onClick={cancelTagEdit}>
+                          取消编辑
+                        </button>
+                      )}
+                      <button className="primary-button add-tag-button" type="submit">
+                        {tagForm.id ? <Save size={16} /> : <CirclePlus size={16} />}
+                        {tagForm.id ? '保存修改' : '新增标签'}
+                      </button>
+                    </div>
                   </div>
                 </form>
 
@@ -1595,7 +1629,10 @@ export default function App() {
                         {group.tags.map((tag) => (
                           <div key={tag.id} className="tag-admin-item" style={{ '--tag-color': tag.color } as CssVars}>
                             <span>{tag.name}</span>
-                            <button onClick={() => deleteTag(tag.id)} title="删除标签">
+                            <button type="button" onClick={() => editTag(tag)} title="编辑标签">
+                              <Pencil size={13} />
+                            </button>
+                            <button type="button" onClick={() => deleteTag(tag.id)} title="删除标签">
                               <Trash2 size={13} />
                             </button>
                           </div>
