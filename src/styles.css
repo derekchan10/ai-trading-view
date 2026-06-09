@@ -1200,6 +1200,69 @@ button {
   grid-template-columns: 1fr 1fr;
 }
 
+.symbol-preview-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid #e4e7ec;
+  border-left: 4px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.symbol-preview-card.loading {
+  border-left-color: #2563eb;
+  background: #eff6ff;
+}
+
+.symbol-preview-card.success {
+  border-left-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.symbol-preview-card.error {
+  border-left-color: #dc2626;
+  background: #fef2f2;
+}
+
+.symbol-preview-card div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.symbol-preview-card strong,
+.symbol-preview-card b {
+  overflow: hidden;
+  color: #172033;
+  font-size: 13px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.symbol-preview-card span,
+.symbol-preview-card em {
+  overflow: hidden;
+  color: #667085;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.symbol-preview-card.success b {
+  color: #15803d;
+}
+
+.symbol-preview-card.error b {
+  color: #b42318;
+}
+
 .drawer-tags {
   max-height: calc(100vh - 290px);
 }

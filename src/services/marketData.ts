@@ -38,6 +38,14 @@ interface PriceBatchResult {
   warningById: Map<string, string>;
 }
 
+export interface SymbolPricePreview {
+  providerSymbol: string;
+  pointCount: number;
+  lastDate: string | null;
+  lastClose: number | null;
+  warning?: string;
+}
+
 interface PendingSymbol {
   symbol: SymbolItem;
   cacheKey: string;
@@ -78,6 +86,62 @@ export function toYahooSymbol(market: Market, code: string): string {
   }
 
   return clean;
+}
+
+export async function previewSymbolPrice(
+  symbol: Pick<SymbolItem, 'market' | 'code' | 'name'>,
+): Promise<SymbolPricePreview> {
+  const cleanCode = symbol.code.trim().toUpperCase();
+  const providerSymbol = toYahooSymbol(symbol.market, cleanCode);
+  if (!cleanCode) {
+    return {
+      providerSymbol,
+      pointCount: 0,
+      lastDate: null,
+      lastClose: null,
+      warning: '请输入股票代码',
+    };
+  }
+
+  const endDate = formatLocalDate(new Date());
+  const start = new Date();
+  start.setDate(start.getDate() - 45);
+  const startDate = formatLocalDate(start);
+  const payload = await requestBatchPriceSeries(
+    [
+      {
+        id: 'symbol-preview',
+        market: symbol.market,
+        code: cleanCode,
+        name: symbol.name || cleanCode,
+        tagIds: [],
+      },
+    ],
+    '1d',
+    startDate,
+    endDate,
+    false,
+  );
+  const item = payload.items?.find((entry) => entry.id === 'symbol-preview');
+  const prices = item?.prices ?? [];
+  const last = prices[prices.length - 1];
+  if (last) {
+    return {
+      providerSymbol: item?.providerSymbol ?? providerSymbol,
+      pointCount: prices.length,
+      lastDate: last.date,
+      lastClose: last.rawClose ?? last.close ?? null,
+    };
+  }
+
+  const warning = payload.warnings?.find((entry) => entry.id === 'symbol-preview');
+  return {
+    providerSymbol: warning?.providerSymbol ?? providerSymbol,
+    pointCount: 0,
+    lastDate: null,
+    lastClose: null,
+    warning: warning?.message || '暂无有效行情',
+  };
 }
 
 async function fetchBatchPriceSeries(
@@ -162,6 +226,13 @@ function chunkItems<T>(items: T[], size: number): T[][] {
     chunks.push(items.slice(index, index + size));
   }
   return chunks;
+}
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function readStoredPriceCache(cacheKey: string): PricePoint[] | null {

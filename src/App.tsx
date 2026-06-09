@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { PerformanceChart } from './components/PerformanceChart';
 import type { ChartExportPayload } from './components/PerformanceChart';
-import { buildPerformanceSeries } from './services/marketData';
+import { buildPerformanceSeries, previewSymbolPrice, toYahooSymbol } from './services/marketData';
 import {
   clearWorkspaceSession,
   createWorkspace,
@@ -57,6 +57,7 @@ type CssVars = CSSProperties & Record<`--${string}`, string>;
 type BatchMarketFilter = MarketFilter;
 type SyncStatus = 'loading' | 'saving' | 'synced' | 'offline' | 'local' | 'readonly';
 type ActivePanel = 'symbol' | 'tags' | 'batch' | 'workspace';
+type SymbolPreviewStatus = 'idle' | 'loading' | 'success' | 'error';
 
 const markets: Array<{ value: Market; label: string }> = [
   { value: 'CN_A', label: 'A股' },
@@ -97,6 +98,13 @@ const emptySymbolForm = {
   name: '',
   lineColor: '',
   tagIds: [] as string[],
+};
+
+const emptySymbolPreview = {
+  status: 'idle' as SymbolPreviewStatus,
+  providerSymbol: '',
+  message: '输入代码后自动预览行情',
+  detail: '',
 };
 
 const tagColorPalette = [
@@ -153,6 +161,7 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [query, setQuery] = useState('');
   const [symbolForm, setSymbolForm] = useState(emptySymbolForm);
+  const [symbolPreview, setSymbolPreview] = useState(emptySymbolPreview);
   const [tagForm, setTagForm] = useState(createEmptyTagForm);
   const [batchForm, setBatchForm] = useState(emptyBatchForm);
   const [batchFilter, setBatchFilter] = useState(emptyBatchFilter);
@@ -274,6 +283,70 @@ export default function App() {
       setTagForm((current) => ({ ...current, color: randomTagColor(current.color) }));
     }
   }, [activePanel]);
+
+  useEffect(() => {
+    if (activePanel !== 'symbol') {
+      setSymbolPreview(emptySymbolPreview);
+      return undefined;
+    }
+
+    const cleanCode = symbolForm.code.trim().toUpperCase();
+    if (!cleanCode) {
+      setSymbolPreview(emptySymbolPreview);
+      return undefined;
+    }
+
+    const providerSymbol = toYahooSymbol(symbolForm.market, cleanCode);
+    setSymbolPreview({
+      status: 'loading',
+      providerSymbol,
+      message: '正在预览行情...',
+      detail: '自动检查最近 45 天日线',
+    });
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void previewSymbolPrice({
+        market: symbolForm.market,
+        code: cleanCode,
+        name: symbolForm.name.trim() || cleanCode,
+      })
+        .then((preview) => {
+          if (cancelled) {
+            return;
+          }
+          if (preview.warning) {
+            setSymbolPreview({
+              status: 'error',
+              providerSymbol: preview.providerSymbol,
+              message: preview.warning,
+              detail: '请检查市场和代码是否匹配',
+            });
+            return;
+          }
+          setSymbolPreview({
+            status: 'success',
+            providerSymbol: preview.providerSymbol,
+            message: preview.lastClose === null ? '行情可用' : `最新价 ${formatPreviewPrice(preview.lastClose)}`,
+            detail: `${preview.lastDate ?? '-'} · ${preview.pointCount} 条日线`,
+          });
+        })
+        .catch((error: unknown) => {
+          if (cancelled) {
+            return;
+          }
+          setSymbolPreview({
+            status: 'error',
+            providerSymbol,
+            message: error instanceof Error ? error.message : '预览行情失败',
+            detail: '请检查市场和代码是否匹配',
+          });
+        });
+    }, 600);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [activePanel, symbolForm.code, symbolForm.market]);
 
   useEffect(() => {
     setState((current) => syncActiveViewTab(current));
@@ -703,6 +776,7 @@ export default function App() {
       };
     });
     setSymbolForm(emptySymbolForm);
+    setSymbolPreview(emptySymbolPreview);
     setSymbolError('');
     if (wasEditing) {
       setActivePanel(symbolReturnPanel);
@@ -1125,6 +1199,7 @@ export default function App() {
             disabled={!canEditWorkspace}
             onClick={() => {
               setSymbolForm(emptySymbolForm);
+              setSymbolPreview(emptySymbolPreview);
               setSymbolError('');
               setSymbolReturnPanel(null);
               setActivePanel('symbol');
@@ -1568,6 +1643,7 @@ export default function App() {
                       value={symbolForm.market}
                       onChange={(event) => {
                         setSymbolError('');
+                        setSymbolPreview(emptySymbolPreview);
                         setSymbolForm((current) => ({ ...current, market: event.target.value as Market }));
                       }}
                     >
@@ -1585,6 +1661,7 @@ export default function App() {
                       placeholder="300502 / NVDA"
                       onChange={(event) => {
                         setSymbolError('');
+                        setSymbolPreview(emptySymbolPreview);
                         setSymbolForm((current) => ({ ...current, code: event.target.value }));
                       }}
                     />
@@ -1608,6 +1685,18 @@ export default function App() {
                       onChange={(event) => setSymbolForm((current) => ({ ...current, lineColor: event.target.value }))}
                     />
                   </label>
+                </div>
+                <div className={`symbol-preview-card ${symbolPreview.status}`}>
+                  <div>
+                    <strong>代码预览</strong>
+                    <span>
+                      Yahoo代码：{symbolPreview.providerSymbol || (symbolForm.code.trim() ? toYahooSymbol(symbolForm.market, symbolForm.code) : '-')}
+                    </span>
+                  </div>
+                  <div>
+                    <b>{symbolPreview.message}</b>
+                    {symbolPreview.detail && <em>{symbolPreview.detail}</em>}
+                  </div>
                 </div>
                 <div className="tag-checkboxes drawer-tags">
                   {groupedTags.map((group) => (
@@ -1636,6 +1725,7 @@ export default function App() {
                       type="button"
                       onClick={() => {
                         setSymbolForm(emptySymbolForm);
+                        setSymbolPreview(emptySymbolPreview);
                         setSymbolError('');
                         setActivePanel(symbolReturnPanel);
                         setSymbolReturnPanel(null);
@@ -2058,6 +2148,16 @@ function formatTitleDate(value: string): string {
 
 function sanitizeDownloadName(value: string): string {
   return value.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
+}
+
+function formatPreviewPrice(value: number): string {
+  if (Math.abs(value) >= 1000) {
+    return value.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  }
+  if (Math.abs(value) >= 10) {
+    return value.toFixed(2);
+  }
+  return value.toFixed(4);
 }
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
