@@ -422,9 +422,7 @@ export default function App() {
   }, [batchFilteredSymbols, bulkSymbolIds]);
 
   const title = useMemo(() => {
-    const startYear = state.startDate.slice(0, 4);
-    const endYear = state.endDate.slice(0, 4);
-    return `${startYear}年-${endYear}年 涨幅节奏`;
+    return `${formatTitleDate(state.startDate)}-${formatTitleDate(state.endDate)} 涨幅节奏`;
   }, [state.endDate, state.startDate]);
 
   const syncLabel = useMemo(() => {
@@ -2055,6 +2053,15 @@ function clearSharedWorkspaceCodeFromUrl(): void {
   }
 }
 
+function formatTitleDate(value: string): string {
+  const [year, month, day] = value.split('-');
+  return year && month && day ? `${year}/${month}/${day}` : value;
+}
+
+function sanitizeDownloadName(value: string): string {
+  return value.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
+}
+
 async function copyTextToClipboard(text: string): Promise<boolean> {
   if (navigator.clipboard?.writeText) {
     try {
@@ -2115,7 +2122,7 @@ async function exportChartWithTable(
   drawExportTable(context, rows, tableY, width, scale, paddingX, headerHeight, rowHeight);
 
   const link = document.createElement('a');
-  link.download = `${title}-涨幅看板-${new Date().toISOString().slice(0, 10)}.png`;
+  link.download = `${sanitizeDownloadName(title)}-涨幅看板-${new Date().toISOString().slice(0, 10)}.png`;
   link.href = canvas.toDataURL('image/png');
   link.click();
 }
