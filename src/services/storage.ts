@@ -148,7 +148,8 @@ export async function joinWorkspace(code: string): Promise<{ session: WorkspaceS
     throw new Error(await readApiError(response));
   }
   const payload = (await response.json()) as WorkspacePayload;
-  const session = payloadToSession(payload, code);
+  const previous = loadWorkspaceHistory().find((item) => item.workspaceId === payload.workspace.id && item.role === payload.workspace.role);
+  const session = payloadToSession(payload, code, previous);
   saveWorkspaceSession(session);
   return { session, state: payload.state ? normalizeState(payload.state) : null };
 }
@@ -214,14 +215,8 @@ export async function rotateWorkspaceCode(
     throw new Error(await readApiError(response));
   }
   const payload = (await response.json()) as WorkspacePayload & { code: string; role: WorkspaceRole };
-  const nextSession: WorkspaceSession = {
-    ...session,
-    code: payload.role === 'editor' ? payload.code : session.code,
-    workspaceName: payload.workspace?.name ?? session.workspaceName,
-    version: payload.version ?? session.version,
-    updatedAt: payload.updatedAt ?? session.updatedAt,
-    ...(payload.role === 'editor' ? { editCode: payload.code } : { viewCode: payload.code }),
-  };
+  const activeCode = payload.role === 'editor' ? payload.code : session.code;
+  const nextSession = payloadToSession(payload, activeCode, session);
   saveWorkspaceSession(nextSession);
   return { session: nextSession, code: payload.code, role: payload.role };
 }
@@ -278,13 +273,14 @@ function payloadToSession(
   code: string,
   previous?: WorkspaceSession,
 ): WorkspaceSession {
+  const isEditor = payload.workspace.role === 'editor';
   return {
     workspaceId: payload.workspace.id,
     workspaceName: payload.workspace.name,
     role: payload.workspace.role,
     code,
-    editCode: payload.editCode ?? previous?.editCode ?? (payload.workspace.role === 'editor' ? code : undefined),
-    viewCode: payload.viewCode ?? previous?.viewCode,
+    editCode: isEditor ? payload.editCode ?? previous?.editCode ?? code : undefined,
+    viewCode: isEditor ? payload.viewCode ?? previous?.viewCode : undefined,
     version: payload.version ?? previous?.version ?? 0,
     updatedAt: payload.updatedAt ?? previous?.updatedAt ?? null,
   };

@@ -18,7 +18,9 @@ export function createStateStore(rootDir) {
     CREATE TABLE IF NOT EXISTS workspaces (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      edit_code TEXT,
       edit_code_hash TEXT NOT NULL UNIQUE,
+      view_code TEXT,
       view_code_hash TEXT NOT NULL UNIQUE,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -32,14 +34,15 @@ export function createStateStore(rootDir) {
       FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
     );
   `);
+  ensureWorkspaceCodeColumns(db);
 
   const getWorkspaceStatement = db.prepare(`
-    SELECT id, name, created_at, updated_at
+    SELECT id, name, edit_code, view_code, created_at, updated_at
     FROM workspaces
     WHERE id = ?
   `);
   const findWorkspaceByCodeStatement = db.prepare(`
-    SELECT id, name, created_at, updated_at,
+    SELECT id, name, edit_code, view_code, created_at, updated_at,
       CASE
         WHEN edit_code_hash = ? THEN 'editor'
         WHEN view_code_hash = ? THEN 'viewer'
@@ -49,8 +52,8 @@ export function createStateStore(rootDir) {
     LIMIT 1
   `);
   const createWorkspaceStatement = db.prepare(`
-    INSERT INTO workspaces (id, name, edit_code_hash, view_code_hash, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO workspaces (id, name, edit_code, edit_code_hash, view_code, view_code_hash, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const updateWorkspaceStatement = db.prepare(`
     UPDATE workspaces
@@ -76,12 +79,12 @@ export function createStateStore(rootDir) {
   `);
   const rotateEditCodeStatement = db.prepare(`
     UPDATE workspaces
-    SET edit_code_hash = ?, updated_at = ?
+    SET edit_code = ?, edit_code_hash = ?, updated_at = ?
     WHERE id = ?
   `);
   const rotateViewCodeStatement = db.prepare(`
     UPDATE workspaces
-    SET view_code_hash = ?, updated_at = ?
+    SET view_code = ?, view_code_hash = ?, updated_at = ?
     WHERE id = ?
   `);
 
@@ -91,32 +94,40 @@ export function createStateStore(rootDir) {
       const id = `ws_${randomToken(16).toLowerCase()}`;
       const editCode = createWorkspaceCode('EDIT');
       const viewCode = createWorkspaceCode('VIEW');
-      createWorkspaceStatement.run(id, normalizeWorkspaceName(name), hashCode(editCode), hashCode(viewCode), now, now);
+      createWorkspaceStatement.run(
+        id,
+        normalizeWorkspaceName(name),
+        editCode,
+        hashCode(editCode),
+        viewCode,
+        hashCode(viewCode),
+        now,
+        now,
+      );
       if (initialState) {
         upsertStateStatement.run(id, JSON.stringify(initialState), now);
       }
       return {
-        workspace: {
+        ...mapWorkspacePayload({
           id,
           name: normalizeWorkspaceName(name),
+          edit_code: editCode,
+          view_code: viewCode,
           role: 'editor',
-          createdAt: now,
-          updatedAt: now,
-        },
-        editCode,
-        viewCode,
+          created_at: now,
+          updated_at: now,
+        }),
         ...readWorkspaceState(id),
       };
     },
 
     joinWorkspace(code) {
-      const codeHash = hashCode(code);
-      const workspace = findWorkspaceByCodeStatement.get(codeHash, codeHash, codeHash, codeHash);
+      const workspace = findWorkspaceByCode(code);
       if (!workspace?.role) {
         return null;
       }
       return {
-        workspace: mapWorkspace(workspace),
+        ...mapWorkspacePayload(workspace),
         ...readWorkspaceState(workspace.id),
       };
     },
@@ -124,7 +135,7 @@ export function createStateStore(rootDir) {
     getWorkspaceState(workspaceId, code) {
       const workspace = authorizeWorkspace(workspaceId, code, 'viewer');
       return {
-        workspace,
+        ...mapWorkspacePayload(workspace),
         ...readWorkspaceState(workspaceId),
       };
     },
@@ -144,7 +155,7 @@ export function createStateStore(rootDir) {
       const updatedAt = new Date().toISOString();
       upsertStateStatement.run(workspaceId, JSON.stringify(state), updatedAt);
       return {
-        workspace,
+        ...mapWorkspacePayload(workspace),
         ...readWorkspaceState(workspaceId),
       };
     },
@@ -153,7 +164,7 @@ export function createStateStore(rootDir) {
       const workspace = authorizeWorkspace(workspaceId, code, 'editor');
       deleteStateStatement.run(workspaceId);
       return {
-        workspace,
+        ...mapWorkspacePayload(workspace),
         state: null,
         version: 0,
         updatedAt: null,
@@ -172,12 +183,15 @@ export function createStateStore(rootDir) {
       const nextCode = createWorkspaceCode(role === 'viewer' ? 'VIEW' : 'EDIT');
       const updatedAt = new Date().toISOString();
       if (role === 'viewer') {
-        rotateViewCodeStatement.run(hashCode(nextCode), updatedAt, workspace.id);
+        rotateViewCodeStatement.run(nextCode, hashCode(nextCode), updatedAt, workspace.id);
       } else {
-        rotateEditCodeStatement.run(hashCode(nextCode), updatedAt, workspace.id);
+        rotateEditCodeStatement.run(nextCode, hashCode(nextCode), updatedAt, workspace.id);
       }
       return {
-        workspace: mapWorkspace(getWorkspaceStatement.get(workspace.id), workspace.role),
+        ...mapWorkspacePayload({
+          ...getWorkspaceStatement.get(workspace.id),
+          role: workspace.role,
+        }),
         role: role === 'viewer' ? 'viewer' : 'editor',
         code: nextCode,
       };
@@ -201,30 +215,33 @@ export function createStateStore(rootDir) {
   }
 
   function authorizeWorkspace(workspaceId, code, minimumRole) {
-    const joined = joinByCode(code);
-    if (!joined || joined.workspace.id !== workspaceId) {
+    const workspace = findWorkspaceByCode(code);
+    if (!workspace || workspace.id !== workspaceId) {
       const error = new Error('工作区代码无效');
       error.statusCode = 401;
       throw error;
     }
-    if (minimumRole === 'editor' && joined.workspace.role !== 'editor') {
+    if (minimumRole === 'editor' && workspace.role !== 'editor') {
       const error = new Error('当前工作区代码只有只读权限');
       error.statusCode = 403;
       throw error;
     }
-    return joined.workspace;
+    return workspace;
   }
 
-  function joinByCode(code) {
+  function findWorkspaceByCode(code) {
     const codeHash = hashCode(code);
-    const workspace = findWorkspaceByCodeStatement.get(codeHash, codeHash, codeHash, codeHash);
-    if (!workspace?.role) {
-      return null;
-    }
-    return {
-      workspace: mapWorkspace(workspace),
-      ...readWorkspaceState(workspace.id),
-    };
+    return findWorkspaceByCodeStatement.get(codeHash, codeHash, codeHash, codeHash);
+  }
+}
+
+function ensureWorkspaceCodeColumns(db) {
+  const columns = new Set(db.prepare('PRAGMA table_info(workspaces)').all().map((column) => column.name));
+  if (!columns.has('edit_code')) {
+    db.exec('ALTER TABLE workspaces ADD COLUMN edit_code TEXT');
+  }
+  if (!columns.has('view_code')) {
+    db.exec('ALTER TABLE workspaces ADD COLUMN view_code TEXT');
   }
 }
 
@@ -261,5 +278,13 @@ function mapWorkspace(row, role = row.role) {
     role,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function mapWorkspacePayload(row) {
+  return {
+    workspace: mapWorkspace(row),
+    ...(row.role === 'editor' && row.edit_code ? { editCode: row.edit_code } : {}),
+    ...(row.role === 'editor' && row.view_code ? { viewCode: row.view_code } : {}),
   };
 }

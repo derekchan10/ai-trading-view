@@ -987,7 +987,9 @@ export default function App() {
     try {
       const result = await rotateWorkspaceCode(session, role);
       setWorkspaceSession(result.session);
-      setWorkspaceMessage(`${role === 'viewer' ? '只读' : '编辑'}代码已重置：${result.code}`);
+      setWorkspaceHistory(loadWorkspaceHistory());
+      const action = role === 'viewer' && !session.viewCode ? '已生成' : '已重置';
+      setWorkspaceMessage(`${role === 'viewer' ? '只读' : '编辑'}代码${action}：${result.code}`);
     } catch (error) {
       setWorkspaceMessage(error instanceof Error ? error.message : '重置代码失败');
     }
@@ -1350,7 +1352,9 @@ export default function App() {
                   </div>
                   <p>
                     {workspaceSession
-                      ? '当前股票池、标签、视图 Tab 和看板配置会按工作区同步。'
+                      ? workspaceSession.role === 'editor'
+                        ? '编辑权限可以同步看板，也可以复制只读代码给别人查看。'
+                        : '当前是只读工作区，只能查看，不能修改股票池、标签和视图。'
                       : '创建工作区后会生成编辑代码和只读代码；别人输入代码即可进入同一个工作区。'}
                   </p>
                   {workspaceSession && (
@@ -1377,7 +1381,7 @@ export default function App() {
                           />
                           <div className="workspace-code-actions">
                             <button type="button" onClick={() => void rotateCode('viewer')}>
-                              重置只读代码
+                              {workspaceSession.viewCode ? '重置只读代码' : '生成只读代码'}
                             </button>
                             <button type="button" onClick={() => void rotateCode('editor')}>
                               重置编辑代码
