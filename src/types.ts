@@ -1,5 +1,7 @@
 export type Market = 'CN_A' | 'US' | 'HK' | 'KR_KOSPI' | 'KR_KOSDAQ' | 'CUSTOM';
 
+export type MarketFilter = Market | 'ALL';
+
 export type ChartMode = 'symbols' | 'tags' | 'mixed';
 
 export type Interval = '1d' | '1wk' | '1mo';
@@ -69,6 +71,7 @@ export interface AppState {
   symbols: SymbolItem[];
   selectedSymbolIds: string[];
   selectedTagIds: string[];
+  marketFilter: MarketFilter;
   mode: ChartMode;
   interval: Interval;
   startDate: string;

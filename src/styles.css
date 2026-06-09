@@ -195,6 +195,7 @@ button {
 
 .control-strip {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
   min-height: 58px;
@@ -209,6 +210,7 @@ button {
 }
 
 .segmented > span,
+.market-field span,
 .date-field span {
   color: #475467;
   font-size: 13px;
@@ -246,6 +248,23 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.market-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.market-field select {
+  height: 32px;
+  min-width: 122px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0 28px 0 9px;
+  color: #172033;
+  background: #ffffff;
+  font-weight: 700;
 }
 
 .date-field input {

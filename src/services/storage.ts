@@ -1,5 +1,5 @@
 import { createInitialState } from '../data/seed';
-import type { AppState, SymbolItem } from '../types';
+import type { AppState, MarketFilter, SymbolItem } from '../types';
 
 const STORAGE_KEY = 'ai-trading-view.state.v2';
 const WORKSPACE_SESSION_KEY = 'ai-trading-view.workspace-session.v1';
@@ -237,6 +237,7 @@ function normalizeState(value: unknown): AppState {
       ...addedDefaultIds,
     ]),
   );
+  const marketFilter = normalizeMarketFilter(parsed.marketFilter, fallback.marketFilter);
   return {
     ...fallback,
     ...parsed,
@@ -244,7 +245,23 @@ function normalizeState(value: unknown): AppState {
     symbols,
     selectedSymbolIds,
     selectedTagIds,
+    marketFilter,
   };
+}
+
+function normalizeMarketFilter(value: unknown, fallback: MarketFilter): MarketFilter {
+  if (
+    value === 'ALL' ||
+    value === 'CN_A' ||
+    value === 'US' ||
+    value === 'HK' ||
+    value === 'KR_KOSPI' ||
+    value === 'KR_KOSDAQ' ||
+    value === 'CUSTOM'
+  ) {
+    return value;
+  }
+  return fallback;
 }
 
 async function readApiError(response: Response): Promise<string> {

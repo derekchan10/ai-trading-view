@@ -35,11 +35,11 @@ import {
   saveState,
 } from './services/storage';
 import type { WorkspaceRole, WorkspaceSession } from './services/storage';
-import type { AppState, ChartMode, Interval, Market, PerformanceSeries, SymbolItem, Tag } from './types';
+import type { AppState, ChartMode, Interval, Market, MarketFilter, PerformanceSeries, SymbolItem, Tag } from './types';
 import './styles.css';
 
 type CssVars = CSSProperties & Record<`--${string}`, string>;
-type BatchMarketFilter = Market | 'ALL';
+type BatchMarketFilter = MarketFilter;
 type SyncStatus = 'loading' | 'saving' | 'synced' | 'offline' | 'local' | 'readonly';
 type ActivePanel = 'symbol' | 'tags' | 'batch' | 'workspace';
 
@@ -235,10 +235,14 @@ export default function App() {
 
   const tagMap = useMemo(() => new Map(state.tags.map((tag) => [tag.id, tag])), [state.tags]);
 
+  const marketScopedSymbols = useMemo(() => {
+    return state.symbols.filter((symbol) => matchesMarketFilter(symbol, state.marketFilter));
+  }, [state.marketFilter, state.symbols]);
+
   const visibleSymbols = useMemo(() => {
     const selectedSymbolIds = new Set(state.selectedSymbolIds);
-    return state.symbols.filter((symbol) => selectedSymbolIds.has(symbol.id));
-  }, [state.selectedSymbolIds, state.symbols]);
+    return marketScopedSymbols.filter((symbol) => selectedSymbolIds.has(symbol.id));
+  }, [marketScopedSymbols, state.selectedSymbolIds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -291,13 +295,13 @@ export default function App() {
   const filteredSymbols = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     if (!keyword) {
-      return state.symbols;
+      return marketScopedSymbols;
     }
-    return state.symbols.filter((symbol) => {
+    return marketScopedSymbols.filter((symbol) => {
       const tags = symbol.tagIds.map((id) => tagMap.get(id)?.name ?? '').join(' ');
       return `${symbol.market} ${symbol.code} ${symbol.name} ${tags}`.toLowerCase().includes(keyword);
     });
-  }, [query, state.symbols, tagMap]);
+  }, [marketScopedSymbols, query, tagMap]);
 
   const groupedTags = useMemo(() => {
     const groupOrder = ['产业链阶段', '产业链位置', '产业链环节', '主体链', '自定义'];
@@ -366,6 +370,8 @@ export default function App() {
     const endYear = state.endDate.slice(0, 4);
     return `${startYear}年-${endYear}年 涨幅节奏`;
   }, [state.endDate, state.startDate]);
+
+  const marketScopeLabel = state.marketFilter === 'ALL' ? '全部市场' : marketLabel(state.marketFilter);
 
   const syncLabel = useMemo(() => {
     if (syncStatus === 'loading') {
@@ -938,6 +944,20 @@ export default function App() {
           options={modeOptions}
           onChange={(value) => updateState({ mode: value })}
         />
+        <label className="market-field">
+          <span>市场</span>
+          <select
+            value={state.marketFilter}
+            onChange={(event) => updateState({ marketFilter: event.target.value as MarketFilter })}
+          >
+            <option value="ALL">全部市场</option>
+            {markets.map((market) => (
+              <option key={market.value} value={market.value}>
+                {market.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <Segmented
           label="周期"
           value={state.interval}
@@ -953,7 +973,7 @@ export default function App() {
           <input value={state.endDate} type="date" onChange={(event) => updateState({ endDate: event.target.value })} />
         </label>
         <div className="summary-pill">
-          已选股票 {visibleSymbols.length}/{state.symbols.length} 只 · 标签 {state.selectedTagIds.length} 个 · 曲线 {series.length} 条
+          {marketScopeLabel} · 入图 {visibleSymbols.length}/{marketScopedSymbols.length} 只 · 标签 {state.selectedTagIds.length} 个 · 曲线 {series.length} 条
         </div>
       </section>
 
@@ -2005,4 +2025,8 @@ function getLinkedTagIdsForSymbols(
 
 function marketLabel(market: Market): string {
   return markets.find((item) => item.value === market)?.label ?? market;
+}
+
+function matchesMarketFilter(symbol: SymbolItem, marketFilter: MarketFilter): boolean {
+  return marketFilter === 'ALL' || symbol.market === marketFilter;
 }

@@ -155,6 +155,7 @@ export function createInitialState(): AppState {
     symbols: seedSymbols.map((symbol) => ({ ...symbol })),
     selectedSymbolIds: seedSymbols.map((symbol) => symbol.id),
     selectedTagIds: positionTagIds,
+    marketFilter: 'ALL',
     mode: 'tags',
     interval: '1d',
     startDate: '2025-01-01',
