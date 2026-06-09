@@ -3,6 +3,7 @@ import type { AppState, ChartMode, DateRangePreset, Interval, MarketFilter, Symb
 
 const STORAGE_KEY = 'ai-trading-view.state.v2';
 const WORKSPACE_SESSION_KEY = 'ai-trading-view.workspace-session.v1';
+const WORKSPACE_HISTORY_KEY = 'ai-trading-view.workspace-history.v1';
 const LEGACY_STORAGE_KEYS = ['ai-trading-view.state.v1'];
 const REMOVED_SYMBOLS = new Set(['US:JNPR']);
 const NEW_DEFAULT_SYMBOLS = new Set(['US:NOK']);
@@ -18,6 +19,10 @@ export interface WorkspaceSession {
   viewCode?: string;
   version: number;
   updatedAt: string | null;
+}
+
+export interface WorkspaceHistoryItem extends WorkspaceSession {
+  lastUsedAt: string;
 }
 
 interface WorkspacePayload {
@@ -71,10 +76,47 @@ export function loadWorkspaceSession(): WorkspaceSession | null {
 
 export function saveWorkspaceSession(session: WorkspaceSession): void {
   window.localStorage.setItem(WORKSPACE_SESSION_KEY, JSON.stringify(session));
+  rememberWorkspaceSession(session);
 }
 
 export function clearWorkspaceSession(): void {
   window.localStorage.removeItem(WORKSPACE_SESSION_KEY);
+}
+
+export function loadWorkspaceHistory(): WorkspaceHistoryItem[] {
+  try {
+    const raw = window.localStorage.getItem(WORKSPACE_HISTORY_KEY);
+    if (!raw) {
+      return [];
+    }
+    return normalizeWorkspaceHistory(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
+export function forgetWorkspaceHistory(workspaceId: string): void {
+  const next = loadWorkspaceHistory().filter((item) => item.workspaceId !== workspaceId);
+  window.localStorage.setItem(WORKSPACE_HISTORY_KEY, JSON.stringify(next));
+}
+
+function rememberWorkspaceSession(session: WorkspaceSession): void {
+  const normalized = normalizeSession(session);
+  if (!normalized) {
+    return;
+  }
+  const history = loadWorkspaceHistory();
+  const existing = history.find((item) => item.workspaceId === normalized.workspaceId);
+  const nextItem: WorkspaceHistoryItem = {
+    ...existing,
+    ...normalized,
+    lastUsedAt: new Date().toISOString(),
+  };
+  const next = [
+    nextItem,
+    ...history.filter((item) => item.workspaceId !== normalized.workspaceId),
+  ].slice(0, 12);
+  window.localStorage.setItem(WORKSPACE_HISTORY_KEY, JSON.stringify(next));
 }
 
 export async function createWorkspace(name: string, state: AppState): Promise<{ session: WorkspaceSession; state: AppState | null }> {
@@ -204,6 +246,31 @@ function normalizeSession(value: WorkspaceSession): WorkspaceSession | null {
     version: Number(value.version ?? 0),
     updatedAt: value.updatedAt ?? null,
   };
+}
+
+function normalizeWorkspaceHistory(value: unknown): WorkspaceHistoryItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const items: WorkspaceHistoryItem[] = [];
+  value.forEach((item) => {
+    const session = normalizeSession(item as WorkspaceSession);
+    if (!session || seen.has(session.workspaceId)) {
+      return;
+    }
+    seen.add(session.workspaceId);
+    items.push({
+      ...session,
+      lastUsedAt:
+        typeof (item as WorkspaceHistoryItem).lastUsedAt === 'string'
+          ? (item as WorkspaceHistoryItem).lastUsedAt
+          : session.updatedAt || new Date(0).toISOString(),
+    });
+  });
+  return items
+    .sort((a, b) => b.lastUsedAt.localeCompare(a.lastUsedAt))
+    .slice(0, 12);
 }
 
 function payloadToSession(

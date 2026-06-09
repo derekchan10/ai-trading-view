@@ -25,9 +25,11 @@ import { buildPerformanceSeries } from './services/marketData';
 import {
   clearWorkspaceSession,
   createWorkspace,
+  forgetWorkspaceHistory,
   joinWorkspace,
   loadRemoteState,
   loadState,
+  loadWorkspaceHistory,
   loadWorkspaceSession,
   resetRemoteState,
   resetState,
@@ -35,7 +37,7 @@ import {
   saveRemoteState,
   saveState,
 } from './services/storage';
-import type { WorkspaceRole, WorkspaceSession } from './services/storage';
+import type { WorkspaceHistoryItem, WorkspaceRole, WorkspaceSession } from './services/storage';
 import type {
   AppState,
   ChartMode,
@@ -161,6 +163,7 @@ export default function App() {
   const [workspaceSession, setWorkspaceSession] = useState<WorkspaceSession | null>(() => loadWorkspaceSession());
   const [workspaceForm, setWorkspaceForm] = useState(emptyWorkspaceForm);
   const [workspaceMessage, setWorkspaceMessage] = useState('');
+  const [workspaceHistory, setWorkspaceHistory] = useState<WorkspaceHistoryItem[]>(() => loadWorkspaceHistory());
   const [copiedWorkspaceCode, setCopiedWorkspaceCode] = useState('');
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => (loadWorkspaceSession() ? 'loading' : 'local'));
   const [symbolError, setSymbolError] = useState('');
@@ -178,6 +181,7 @@ export default function App() {
 
   useEffect(() => {
     workspaceSessionRef.current = workspaceSession;
+    setWorkspaceHistory(loadWorkspaceHistory());
   }, [workspaceSession]);
 
   useEffect(() => {
@@ -920,6 +924,7 @@ export default function App() {
     try {
       const result = await createWorkspace(workspaceForm.name, stateRef.current);
       setWorkspaceSession(result.session);
+      setWorkspaceHistory(loadWorkspaceHistory());
       if (result.state) {
         setState(result.state);
       }
@@ -938,10 +943,15 @@ export default function App() {
       setWorkspaceMessage('请输入工作区代码。');
       return;
     }
+    await enterWorkspaceByCode(code);
+  }
+
+  async function enterWorkspaceByCode(code: string) {
     setWorkspaceMessage('正在进入工作区...');
     try {
       const result = await joinWorkspace(code);
       setWorkspaceSession(result.session);
+      setWorkspaceHistory(loadWorkspaceHistory());
       if (result.state) {
         setState(result.state);
         saveState(result.state);
@@ -958,10 +968,16 @@ export default function App() {
   function leaveWorkspace() {
     clearWorkspaceSession();
     setWorkspaceSession(null);
+    setWorkspaceHistory(loadWorkspaceHistory());
     workspaceSessionRef.current = null;
     remoteReadyRef.current = true;
     setSyncStatus('local');
     setWorkspaceMessage('已退出工作区，当前使用本地模式。');
+  }
+
+  function removeWorkspaceHistory(workspaceId: string) {
+    forgetWorkspaceHistory(workspaceId);
+    setWorkspaceHistory(loadWorkspaceHistory());
   }
 
   async function rotateCode(role: WorkspaceRole) {
@@ -1337,7 +1353,7 @@ export default function App() {
                   </div>
                   <p>
                     {workspaceSession
-                      ? '当前股票池、标签和看板配置会按工作区同步。'
+                      ? '当前股票池、标签、视图 Tab 和看板配置会按工作区同步。'
                       : '创建工作区后会生成编辑代码和只读代码；别人输入代码即可进入同一个工作区。'}
                   </p>
                   {workspaceSession && (
@@ -1380,6 +1396,40 @@ export default function App() {
                     </button>
                   )}
                 </section>
+
+                {workspaceHistory.length > 0 && (
+                  <section className="workspace-card workspace-history-card">
+                    <div className="workspace-card-head">
+                      <strong>最近工作区</strong>
+                      <span>保存在本机浏览器</span>
+                    </div>
+                    <div className="workspace-history-list">
+                      {workspaceHistory.map((item) => (
+                        <div
+                          key={item.workspaceId}
+                          className={`workspace-history-item ${
+                            workspaceSession?.workspaceId === item.workspaceId ? 'active' : ''
+                          }`}
+                        >
+                          <button type="button" onClick={() => void enterWorkspaceByCode(item.code)}>
+                            <strong>{item.workspaceName}</strong>
+                            <span>
+                              {item.role === 'viewer' ? '只读' : '编辑'} · {formatHistoryTime(item.lastUsedAt)}
+                            </span>
+                          </button>
+                          <button
+                            className="history-remove-button"
+                            type="button"
+                            onClick={() => removeWorkspaceHistory(item.workspaceId)}
+                            title="从本机历史移除"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
 
                 <form className="workspace-card" onSubmit={submitCreateWorkspace}>
                   <div className="workspace-card-head">
@@ -2354,4 +2404,29 @@ function nextViewName(views: ViewTab[]): string {
     name = `视图 ${index}`;
   }
   return name;
+}
+
+function formatHistoryTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '最近使用';
+  }
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const minute = 1000 * 60;
+  const hour = minute * 60;
+  const day = hour * 24;
+  if (diffMs < minute) {
+    return '刚刚';
+  }
+  if (diffMs < hour) {
+    return `${Math.max(1, Math.floor(diffMs / minute))}分钟前`;
+  }
+  if (diffMs < day) {
+    return `${Math.floor(diffMs / hour)}小时前`;
+  }
+  if (diffMs < day * 7) {
+    return `${Math.floor(diffMs / day)}天前`;
+  }
+  return formatLocalDate(date);
 }
