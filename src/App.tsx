@@ -348,8 +348,7 @@ export default function App() {
             if (current.code.trim().toUpperCase() !== cleanCode) {
               return current;
             }
-            const currentName = current.name.trim();
-            const shouldFillName = Boolean(resolvedName) && (!currentName || currentName.toUpperCase() === cleanCode);
+            const shouldFillName = Boolean(resolvedName);
             const shouldFillMarket = current.market !== resolvedMarket;
             if (!shouldFillName && !shouldFillMarket) {
               return current;
