@@ -22,7 +22,12 @@ import {
 } from 'lucide-react';
 import { PerformanceChart } from './components/PerformanceChart';
 import type { ChartExportPayload } from './components/PerformanceChart';
-import { buildPerformanceSeries, previewSymbolPrice, toYahooSymbol } from './services/marketData';
+import {
+  buildPerformanceSeries,
+  inferMarketFromYahooSymbol,
+  previewSymbolPrice,
+  toYahooSymbol,
+} from './services/marketData';
 import {
   clearWorkspaceSession,
   createWorkspace,
@@ -103,6 +108,8 @@ const emptySymbolForm = {
 const emptySymbolPreview = {
   status: 'idle' as SymbolPreviewStatus,
   providerSymbol: '',
+  resolvedMarket: undefined as Market | undefined,
+  resolvedName: '',
   message: '输入代码后自动预览行情',
   detail: '',
 };
@@ -300,6 +307,8 @@ export default function App() {
     setSymbolPreview({
       status: 'loading',
       providerSymbol,
+      resolvedMarket: undefined,
+      resolvedName: '',
       message: '正在预览行情...',
       detail: '自动检查最近 45 天日线',
     });
@@ -315,28 +324,71 @@ export default function App() {
             return;
           }
           if (preview.warning) {
+            const inferredMarket = inferMarketFromYahooSymbol(preview.providerSymbol, symbolForm.market);
+            setSymbolForm((current) => {
+              if (current.code.trim().toUpperCase() !== cleanCode || current.market === inferredMarket) {
+                return current;
+              }
+              return { ...current, market: inferredMarket };
+            });
             setSymbolPreview({
               status: 'error',
               providerSymbol: preview.providerSymbol,
+              resolvedMarket: inferredMarket,
+              resolvedName: '',
               message: preview.warning,
               detail: '请检查市场和代码是否匹配',
             });
             return;
           }
+          const resolvedMarket =
+            preview.resolvedMarket ?? inferMarketFromYahooSymbol(preview.providerSymbol, symbolForm.market);
+          const resolvedName = preview.resolvedName?.trim() ?? '';
+          setSymbolForm((current) => {
+            if (current.code.trim().toUpperCase() !== cleanCode) {
+              return current;
+            }
+            const currentName = current.name.trim();
+            const shouldFillName = Boolean(resolvedName) && (!currentName || currentName.toUpperCase() === cleanCode);
+            const shouldFillMarket = current.market !== resolvedMarket;
+            if (!shouldFillName && !shouldFillMarket) {
+              return current;
+            }
+            return {
+              ...current,
+              market: shouldFillMarket ? resolvedMarket : current.market,
+              name: shouldFillName ? resolvedName : current.name,
+            };
+          });
+          const previewMeta = [
+            resolvedName ? `识别：${resolvedName}` : '',
+            `${marketLabel(resolvedMarket)}${preview.exchangeName ? ` · ${preview.exchangeName}` : ''}`,
+          ].filter(Boolean);
           setSymbolPreview({
             status: 'success',
             providerSymbol: preview.providerSymbol,
+            resolvedMarket,
+            resolvedName,
             message: preview.lastClose === null ? '行情可用' : `最新价 ${formatPreviewPrice(preview.lastClose)}`,
-            detail: `${preview.lastDate ?? '-'} · ${preview.pointCount} 条日线`,
+            detail: `${previewMeta.join(' · ')} · ${preview.lastDate ?? '-'} · ${preview.pointCount} 条日线`,
           });
         })
         .catch((error: unknown) => {
           if (cancelled) {
             return;
           }
+          const inferredMarket = inferMarketFromYahooSymbol(providerSymbol, symbolForm.market);
+          setSymbolForm((current) => {
+            if (current.code.trim().toUpperCase() !== cleanCode || current.market === inferredMarket) {
+              return current;
+            }
+            return { ...current, market: inferredMarket };
+          });
           setSymbolPreview({
             status: 'error',
             providerSymbol,
+            resolvedMarket: inferredMarket,
+            resolvedName: '',
             message: error instanceof Error ? error.message : '预览行情失败',
             detail: '请检查市场和代码是否匹配',
           });

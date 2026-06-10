@@ -19,6 +19,9 @@ let persistentCacheCleared = false;
 interface PriceBatchApiItem {
   id: string;
   providerSymbol: string;
+  resolvedMarket?: Market;
+  resolvedName?: string;
+  exchangeName?: string;
   prices: PricePoint[];
 }
 
@@ -40,6 +43,9 @@ interface PriceBatchResult {
 
 export interface SymbolPricePreview {
   providerSymbol: string;
+  resolvedMarket?: Market;
+  resolvedName?: string;
+  exchangeName?: string;
   pointCount: number;
   lastDate: string | null;
   lastClose: number | null;
@@ -88,6 +94,26 @@ export function toYahooSymbol(market: Market, code: string): string {
   return clean;
 }
 
+export function inferMarketFromYahooSymbol(providerSymbol: string, fallback: Market): Market {
+  const clean = providerSymbol.trim().toUpperCase();
+  if (/\.(SS|SZ|BJ)$/.test(clean)) {
+    return 'CN_A';
+  }
+  if (/\.HK$/.test(clean)) {
+    return 'HK';
+  }
+  if (/\.KS$/.test(clean)) {
+    return 'KR_KOSPI';
+  }
+  if (/\.KQ$/.test(clean)) {
+    return 'KR_KOSDAQ';
+  }
+  if (!clean.includes('.') && !clean.includes('=') && !clean.startsWith('^')) {
+    return 'US';
+  }
+  return fallback;
+}
+
 export async function previewSymbolPrice(
   symbol: Pick<SymbolItem, 'market' | 'code' | 'name'>,
 ): Promise<SymbolPricePreview> {
@@ -121,6 +147,7 @@ export async function previewSymbolPrice(
     startDate,
     endDate,
     false,
+    true,
   );
   const item = payload.items?.find((entry) => entry.id === 'symbol-preview');
   const prices = item?.prices ?? [];
@@ -128,6 +155,9 @@ export async function previewSymbolPrice(
   if (last) {
     return {
       providerSymbol: item?.providerSymbol ?? providerSymbol,
+      resolvedMarket: item?.resolvedMarket ?? inferMarketFromYahooSymbol(item?.providerSymbol ?? providerSymbol, symbol.market),
+      resolvedName: item?.resolvedName,
+      exchangeName: item?.exchangeName,
       pointCount: prices.length,
       lastDate: last.date,
       lastClose: last.rawClose ?? last.close ?? null,
@@ -284,6 +314,7 @@ async function requestBatchPriceSeries(
   startDate: string,
   endDate: string,
   refresh: boolean,
+  includeMeta = false,
 ): Promise<PriceBatchApiResponse> {
   const response = await fetchWithTimeout('/api/prices/batch', API_TIMEOUT_MS, {
     method: 'POST',
@@ -301,6 +332,7 @@ async function requestBatchPriceSeries(
       startDate,
       endDate,
       refresh,
+      includeMeta,
     }),
   });
 
@@ -459,6 +491,8 @@ function buildTagAggregates(
           name: member.name,
           market: member.market,
           code: member.code,
+          color: member.color,
+          data: member.data,
         })),
         data,
         metrics: computeMetrics(data),

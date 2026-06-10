@@ -63,6 +63,8 @@ export interface PerformanceSeries {
     name: string;
     market: Market | 'TAG';
     code: string;
+    color?: string;
+    data?: PerformancePoint[];
   }>;
   data: PerformancePoint[];
   metrics: SeriesMetrics;

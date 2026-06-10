@@ -956,8 +956,16 @@ button {
   line-height: 1.4;
 }
 
-.hover-value {
+.hover-value-label {
   margin-top: 10px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.hover-value {
+  margin-top: 4px;
   font-size: 22px;
   font-weight: 900;
   line-height: 1;
@@ -989,7 +997,7 @@ button {
 
 .hover-member-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 5px;
   max-height: 250px;
   overflow: auto;
@@ -998,7 +1006,7 @@ button {
 }
 
 .hover-inspector.dense .hover-member-grid {
-  grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   max-height: 330px;
   overflow: hidden;
 }
@@ -1009,6 +1017,10 @@ button {
 
 .hover-inspector.dense .hover-member b {
   font-size: 11px;
+}
+
+.hover-inspector.dense .hover-member-return {
+  font-size: 10px;
 }
 
 .hover-inspector.dense .hover-member em {
@@ -1024,8 +1036,18 @@ button {
   background: rgba(15, 23, 42, 0.76);
 }
 
+.hover-member-head {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .hover-member b {
   display: block;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   color: #f8fafc;
   font-size: 12px;
@@ -1033,6 +1055,21 @@ button {
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.hover-member-return {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.hover-member-return.empty {
+  color: #94a3b8;
+}
+
+.hover-member-return.neutral {
+  color: #e2e8f0;
 }
 
 .hover-member em {

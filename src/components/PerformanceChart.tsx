@@ -513,6 +513,25 @@ function HoverInspector({ info }: { info: HoverInfo }) {
   const isTag = meta.type === 'tag';
   const members = meta.members ?? [];
   const tags = meta.tagNames ?? [];
+  const memberReturns = isTag
+    ? members
+        .map((member) => ({
+          ...member,
+          value: getSeriesValueAtDate(member.data, info.date),
+        }))
+        .sort((a, b) => {
+          if (a.value === null && b.value === null) {
+            return a.name.localeCompare(b.name, 'zh-Hans-CN');
+          }
+          if (a.value === null) {
+            return 1;
+          }
+          if (b.value === null) {
+            return -1;
+          }
+          return b.value - a.value;
+        })
+    : [];
 
   return (
     <aside className={`hover-inspector ${isTag && members.length > 8 ? 'dense' : ''}`} style={{ borderColor: meta.color }}>
@@ -521,25 +540,31 @@ function HoverInspector({ info }: { info: HoverInfo }) {
         <div>
           <strong>{meta.label}</strong>
           <small>
-            {isTag ? `标签均值 · ${meta.memberCount ?? members.length} 只` : `${formatMarket(meta.market)} · ${meta.code}`} ·{' '}
+            {isTag ? `标签 · ${meta.memberCount ?? members.length} 只` : `${formatMarket(meta.market)} · ${meta.code}`} ·{' '}
             {info.date}
           </small>
         </div>
       </header>
+      <div className="hover-value-label">{isTag ? '标签该日区间涨幅' : '个股该日区间涨幅'}</div>
       <div className="hover-value" style={{ color: meta.color }}>
-        {info.value.toFixed(2)}%
+        {formatReturnPercent(info.value)}
       </div>
 
       {isTag ? (
         <div className="hover-block">
           <div className="hover-block-title">
-            <span>这条标签线包含的公司</span>
-            <em>{members.length} 只</em>
+            <span>成员股票该日区间涨幅</span>
+            <em>{memberReturns.length} 只</em>
           </div>
           <div className="hover-member-grid">
-            {members.map((member) => (
+            {memberReturns.map((member) => (
               <span key={member.id} className="hover-member">
-                <b>{member.name}</b>
+                <span className="hover-member-head">
+                  <b>{member.name}</b>
+                  <span className={`hover-member-return ${getReturnTone(member.value)}`}>
+                    {formatReturnPercent(member.value)}
+                  </span>
+                </span>
                 <em>
                   {formatMarket(member.market)} · {member.code}
                 </em>
@@ -561,6 +586,45 @@ function HoverInspector({ info }: { info: HoverInfo }) {
       )}
     </aside>
   );
+}
+
+function getSeriesValueAtDate(points: PerformancePoint[] | undefined, date: string): number | null {
+  if (!points?.length || points[0].date > date) {
+    return null;
+  }
+
+  let left = 0;
+  let right = points.length - 1;
+  while (left <= right) {
+    const middle = Math.floor((left + right) / 2);
+    if (points[middle].date <= date) {
+      left = middle + 1;
+    } else {
+      right = middle - 1;
+    }
+  }
+
+  return points[right]?.value ?? null;
+}
+
+function formatReturnPercent(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return '暂无';
+  }
+  return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+}
+
+function getReturnTone(value: number | null): string {
+  if (value === null) {
+    return 'empty';
+  }
+  if (value > 0) {
+    return 'positive';
+  }
+  if (value < 0) {
+    return 'negative';
+  }
+  return 'neutral';
 }
 
 function updateChartHighlight(

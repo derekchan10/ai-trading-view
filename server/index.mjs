@@ -174,11 +174,12 @@ async function handleBatchPrices(request, response) {
   const interval = validateInterval(body.interval);
   const { startDate, endDate, period1, period2 } = parseDateRange(body.startDate, body.endDate);
   const refresh = Boolean(body.refresh);
+  const includeMeta = Boolean(body.includeMeta);
   const symbols = validateSymbols(body.symbols);
   const deadlineAt = Date.now() + batchDeadlineMs;
 
   const loaded = await mapWithConcurrency(symbols, requestConcurrency, async (symbol) => {
-    return fetchYahooSeries(symbol, interval, startDate, endDate, period1, period2, refresh, deadlineAt);
+    return fetchYahooSeries(symbol, interval, startDate, endDate, period1, period2, refresh, deadlineAt, includeMeta);
   });
 
   const items = [];
@@ -240,17 +241,31 @@ function validateAppState(state) {
   return state;
 }
 
-async function fetchYahooSeries(symbol, interval, startDate, endDate, period1, period2, refresh, deadlineAt = Infinity) {
+async function fetchYahooSeries(
+  symbol,
+  interval,
+  startDate,
+  endDate,
+  period1,
+  period2,
+  refresh,
+  deadlineAt = Infinity,
+  includeMeta = false,
+) {
   const providerSymbol = toYahooSymbol(symbol.market, symbol.code);
   const cacheKey = `${providerSymbol}|${interval}|${startDate}|${endDate}`;
   const cached = priceCache.get(cacheKey);
   if (!refresh && cached && Date.now() - cached.savedAt < cacheTtlMs) {
+    const symbolMeta = includeMeta
+      ? await resolveYahooSymbolMeta(providerSymbol, null, symbol.market, deadlineAt)
+      : {};
     return {
       id: symbol.id,
       market: symbol.market,
       code: symbol.code,
       name: symbol.name,
       providerSymbol,
+      ...symbolMeta,
       prices: cached.data,
       cached: true,
     };
@@ -279,6 +294,9 @@ async function fetchYahooSeries(symbol, interval, startDate, endDate, period1, p
   if (!prices.length) {
     throw new Error('暂无有效行情');
   }
+  const symbolMeta = includeMeta
+    ? await resolveYahooSymbolMeta(providerSymbol, result.meta ?? null, symbol.market, deadlineAt)
+    : {};
 
   priceCache.set(cacheKey, {
     savedAt: Date.now(),
@@ -291,9 +309,73 @@ async function fetchYahooSeries(symbol, interval, startDate, endDate, period1, p
     code: symbol.code,
     name: symbol.name,
     providerSymbol,
+    ...symbolMeta,
     prices,
     cached: false,
   };
+}
+
+async function resolveYahooSymbolMeta(providerSymbol, chartMeta, requestedMarket, deadlineAt = Infinity) {
+  let quoteMeta = null;
+  try {
+    quoteMeta = await fetchYahooQuoteMeta(providerSymbol, deadlineAt);
+  } catch {
+    quoteMeta = null;
+  }
+
+  const resolvedSymbol = firstText(quoteMeta?.symbol, chartMeta?.symbol, providerSymbol) ?? providerSymbol;
+  const resolvedName = firstText(
+    quoteMeta?.shortName,
+    quoteMeta?.longName,
+    quoteMeta?.displayName,
+    chartMeta?.shortName,
+    chartMeta?.longName,
+  );
+  const exchangeName = firstText(
+    quoteMeta?.fullExchangeName,
+    quoteMeta?.exchangeName,
+    quoteMeta?.exchange,
+    chartMeta?.fullExchangeName,
+    chartMeta?.exchangeName,
+  );
+
+  return {
+    providerSymbol: resolvedSymbol,
+    resolvedMarket: inferMarketFromYahooSymbol(resolvedSymbol, requestedMarket),
+    resolvedName,
+    exchangeName,
+  };
+}
+
+async function fetchYahooQuoteMeta(providerSymbol, deadlineAt = Infinity) {
+  const errors = [];
+  for (const base of yahooBases) {
+    const url = `${base}/v7/finance/quote?symbols=${encodeURIComponent(providerSymbol)}`;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const remainingMs = getRemainingMs(deadlineAt);
+        if (remainingMs < 1200) {
+          throw new Error('本批次接近超时，跳过名称解析');
+        }
+        const response = await requestYahooUrl(url, Math.min(requestTimeoutMs, Math.max(1000, remainingMs - 700)));
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          errors.push(`${new URL(base).hostname}:${response.statusCode}`);
+          if (response.statusCode === 429) {
+            await sleepWithinDeadline(1800 + attempt * 2500, deadlineAt);
+            continue;
+          }
+          break;
+        }
+        const payload = JSON.parse(response.body);
+        return payload?.quoteResponse?.result?.[0] ?? null;
+      } catch (error) {
+        errors.push(`${new URL(base).hostname}:${error instanceof Error ? error.message : '请求失败'}`);
+        await sleepWithinDeadline(400 + attempt * 700, deadlineAt);
+      }
+    }
+  }
+
+  throw new Error(formatYahooError(errors));
 }
 
 async function fetchYahooJson(providerSymbol, params, deadlineAt = Infinity) {
@@ -438,6 +520,35 @@ function toYahooSymbol(market, code) {
   }
 
   return clean;
+}
+
+function inferMarketFromYahooSymbol(providerSymbol, fallback) {
+  const clean = String(providerSymbol ?? '').trim().toUpperCase();
+  if (/\.(SS|SZ|BJ)$/.test(clean)) {
+    return 'CN_A';
+  }
+  if (/\.HK$/.test(clean)) {
+    return 'HK';
+  }
+  if (/\.KS$/.test(clean)) {
+    return 'KR_KOSPI';
+  }
+  if (/\.KQ$/.test(clean)) {
+    return 'KR_KOSDAQ';
+  }
+  if (!clean.includes('.') && !clean.includes('=') && !clean.startsWith('^')) {
+    return 'US';
+  }
+  return fallback;
+}
+
+function firstText(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
 }
 
 function validateInterval(interval) {
